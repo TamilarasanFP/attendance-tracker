@@ -1,0 +1,15 @@
+{
+  "name": "attendance-tracker",
+  "version": "1.0.0",
+  "description": "Employee attendance tracker with live in-browser camera capture; timestamp is stamped on the photo and recorded at capture.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node selftest.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1"
+  }
+}

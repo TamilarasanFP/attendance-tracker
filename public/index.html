@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attendance Check-in</title>
+<style>
+  :root{--bg:#0f172a;--card:#1e293b;--muted:#94a3b8;--txt:#e2e8f0;--acc:#38bdf8;--ok:#22c55e;--warn:#f59e0b;--border:#334155;}
+  *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  body{margin:0;background:var(--bg);color:var(--txt);}
+  header{padding:16px 22px;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  header h1{font-size:18px;margin:0;}
+  header a{margin-left:auto;font-size:13px;color:var(--muted);text-decoration:none;border:1px solid var(--border);padding:7px 13px;border-radius:8px;}
+  main{max-width:520px;margin:0 auto;padding:24px 18px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;}
+  label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px;}
+  input,select{width:100%;padding:11px 12px;border-radius:9px;border:1px solid var(--border);background:#0b1424;color:var(--txt);font-size:15px;}
+  input[readonly]{opacity:.85;background:#0e1a2e;}
+  button.primary{margin-top:20px;width:100%;padding:13px;border:none;border-radius:9px;background:var(--acc);color:#04263a;font-weight:700;font-size:15px;cursor:pointer;}
+  button.primary:disabled{opacity:.55;cursor:not-allowed;}
+  .camwrap{margin-top:8px;position:relative;background:#000;border-radius:11px;overflow:hidden;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;}
+  video,canvas.shot{width:100%;height:100%;object-fit:cover;display:none;}
+  .camwrap .placeholder{color:#64748b;font-size:13px;text-align:center;padding:20px;}
+  .btnrow{display:flex;gap:10px;margin-top:12px;}
+  .btnrow button{flex:1;padding:11px;border-radius:9px;border:1px solid var(--border);background:#0b1424;color:var(--txt);cursor:pointer;font-size:14px;}
+  .btnrow button.accent{background:var(--acc);color:#04263a;border-color:var(--acc);font-weight:600;}
+  .btnrow button:disabled{opacity:.4;cursor:not-allowed;}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;}
+  .status{margin-top:16px;padding:12px 14px;border-radius:9px;font-size:14px;display:none;}
+  .status.show{display:block;}
+  .status.ok{background:rgba(34,197,94,.12);border:1px solid var(--ok);color:#bbf7d0;}
+  .status.err{background:rgba(245,158,11,.12);border:1px solid var(--warn);color:#fde68a;}
+  .status.busy{background:rgba(56,189,248,.1);border:1px solid var(--acc);color:#bae6fd;}
+  .noteban{font-size:12px;color:var(--muted);background:#0b1424;border:1px dashed var(--border);border-radius:9px;padding:10px 12px;margin-bottom:8px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🕑 Attendance Check-in</h1>
+  <a href="/admin/login">Admin</a>
+</header>
+
+<main>
+  <div class="card">
+    <div class="noteban">Open the camera and take your attendance photo. The current <b>date &amp; time is stamped onto the photo and recorded automatically</b>.</div>
+    <label>Employee ID</label>
+    <input id="empId" placeholder="e.g. EMP1042" autocomplete="off">
+    <label>Name</label>
+    <input id="name" placeholder="e.g. Priya Kumar" autocomplete="off">
+    <div class="hint" id="nameHint"></div>
+    <label>Entry type</label>
+    <select id="type">
+      <option value="start">Start of the day</option>
+      <option value="end">End of the day</option>
+    </select>
+
+    <label>Camera</label>
+    <div class="camwrap">
+      <div class="placeholder" id="camPlaceholder">Camera is off. Tap “Open camera” to start.</div>
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="shot" class="shot"></canvas>
+    </div>
+    <div class="btnrow">
+      <button id="openBtn">Open camera</button>
+      <button id="captureBtn" class="accent" disabled>Capture photo</button>
+      <button id="retakeBtn" disabled>Retake</button>
+    </div>
+    <div class="hint">Live camera needs <b>localhost or HTTPS</b>. Allow camera access when the browser asks.</div>
+
+    <button class="primary" id="submitBtn" disabled>Submit attendance</button>
+    <div class="status" id="userStatus"></div>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let stream=null, capturedBlob=null, capturedAt=null;
+const video=$('video'), shot=$('shot');
+function p(n){ return String(n).padStart(2,'0'); }
+function setStatus(cls,msg){ const s=$('userStatus'); if(!msg){s.className='status';s.innerHTML='';return;} s.className='status show '+cls; s.innerHTML=msg; }
+
+// auto-fill name from roster when the Employee ID matches
+let rosterFilled=false, lookupTimer=null;
+$('empId').oninput=()=>{
+  clearTimeout(lookupTimer);
+  const id=$('empId').value.trim();
+  if(!id){ unlockName(); return; }
+  lookupTimer=setTimeout(async()=>{
+    try{
+      const d=await (await fetch('/api/lookup/'+encodeURIComponent(id))).json();
+      if(d && d.name){
+        $('name').value=d.name; $('name').readOnly=true; rosterFilled=true;
+        $('nameHint').textContent='Name auto-filled from roster.';
+      }else unlockName();
+    }catch(e){ unlockName(); }
+  },350);
+};
+function unlockName(){
+  if(rosterFilled) $('name').value='';
+  $('name').readOnly=false; rosterFilled=false; $('nameHint').textContent='';
+}
+
+$('openBtn').onclick=async()=>{
+  setStatus('','');
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
+    video.srcObject=stream;
+    $('camPlaceholder').style.display='none';
+    shot.style.display='none'; video.style.display='block';
+    $('captureBtn').disabled=false; $('retakeBtn').disabled=true;
+    capturedBlob=null; $('submitBtn').disabled=true;
+  }catch(e){
+    setStatus('err','Could not open camera: '+e.message+'. Check permissions and that you are on localhost/HTTPS.');
+  }
+};
+
+$('captureBtn').onclick=()=>{
+  if(!stream) return;
+  const w=video.videoWidth||640, h=video.videoHeight||480;
+  shot.width=w; shot.height=h;
+  const ctx=shot.getContext('2d');
+  ctx.drawImage(video,0,0,w,h);
+  const now=new Date();
+  const stamp=now.getFullYear()+'-'+p(now.getMonth()+1)+'-'+p(now.getDate())+' '+p(now.getHours())+':'+p(now.getMinutes())+':'+p(now.getSeconds());
+  const fsz=Math.max(16, Math.round(w*0.035));
+  ctx.font=`bold ${fsz}px monospace`;
+  const tw=ctx.measureText(stamp).width;
+  ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(10, h-fsz-20, tw+20, fsz+14);
+  ctx.fillStyle='#fff'; ctx.textBaseline='top'; ctx.fillText(stamp, 20, h-fsz-13);
+  capturedAt=now.toISOString();
+  shot.toBlob(b=>{ capturedBlob=b; $('submitBtn').disabled=false; }, 'image/jpeg', 0.9);
+  video.style.display='none'; shot.style.display='block';
+  $('captureBtn').disabled=true; $('retakeBtn').disabled=false;
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+};
+
+$('retakeBtn').onclick=()=>{ capturedBlob=null; $('submitBtn').disabled=true; $('openBtn').click(); };
+
+$('submitBtn').onclick=async()=>{
+  const name=$('name').value.trim(), empId=$('empId').value.trim(), type=$('type').value;
+  if(!name||!empId){ setStatus('err','Enter your name and employee ID.'); return; }
+  if(!capturedBlob){ setStatus('err','Capture a photo first.'); return; }
+  const fd=new FormData();
+  fd.append('name',name); fd.append('empId',empId); fd.append('type',type);
+  fd.append('captureTime', capturedAt||new Date().toISOString());
+  fd.append('photo', capturedBlob, 'capture.jpg');
+  $('submitBtn').disabled=true; setStatus('busy','Submitting…');
+  try{
+    const res=await fetch('/api/checkin',{method:'POST',body:fd});
+    const data=await res.json();
+    if(!res.ok){ setStatus('err', data.error||'Something went wrong.'); $('submitBtn').disabled=false; }
+    else{
+      setStatus('ok',`✅ Recorded <b>${type==='start'?'Start of day':'End of day'}</b> for <b>${esc(name)}</b> (${esc(empId)}).<br>Date: <b>${esc(data.date)}</b> &nbsp; time: <b>${esc(data.time)}</b>`);
+      capturedBlob=null; $('captureBtn').disabled=true; $('retakeBtn').disabled=true;
+      $('camPlaceholder').style.display='block'; shot.style.display='none';
+    }
+  }catch(e){ setStatus('err','Network error: '+e.message); $('submitBtn').disabled=false; }
+};
+function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+</script>
+</body>
+</html>

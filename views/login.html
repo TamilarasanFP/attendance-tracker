@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Login</title>
+<style>
+  :root{--bg:#0f172a;--card:#1e293b;--muted:#94a3b8;--txt:#e2e8f0;--acc:#38bdf8;--warn:#f59e0b;--border:#334155;}
+  *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  body{margin:0;background:var(--bg);color:var(--txt);display:flex;min-height:100vh;align-items:center;justify-content:center;padding:20px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;width:100%;max-width:360px;}
+  h1{font-size:20px;margin:0 0 4px;}
+  p.sub{color:var(--muted);font-size:13px;margin:0 0 20px;}
+  label{display:block;font-size:13px;color:var(--muted);margin:0 0 6px;}
+  input{width:100%;padding:12px;border-radius:9px;border:1px solid var(--border);background:#0b1424;color:var(--txt);font-size:15px;}
+  button{margin-top:18px;width:100%;padding:13px;border:none;border-radius:9px;background:var(--acc);color:#04263a;font-weight:700;font-size:15px;cursor:pointer;}
+  button:disabled{opacity:.6;cursor:not-allowed;}
+  .err{margin-top:14px;font-size:14px;color:#fde68a;background:rgba(245,158,11,.12);border:1px solid var(--warn);border-radius:9px;padding:10px 12px;display:none;}
+  .err.show{display:block;}
+  a.back{display:block;text-align:center;margin-top:16px;font-size:12px;color:var(--muted);text-decoration:none;}
+</style>
+</head>
+<body>
+  <form class="card" id="loginForm">
+    <h1>🔒 Admin Login</h1>
+    <p class="sub">Enter the admin password to view attendance.</p>
+    <label for="pw">Password</label>
+    <input id="pw" type="password" autocomplete="current-password" autofocus>
+    <button type="submit" id="btn">Sign in</button>
+    <div class="err" id="err"></div>
+    <a class="back" href="/">← Back to check-in</a>
+  </form>
+<script>
+  const form=document.getElementById('loginForm');
+  const err=document.getElementById('err');
+  const btn=document.getElementById('btn');
+  form.onsubmit=async(e)=>{
+    e.preventDefault();
+    err.className='err';
+    btn.disabled=true; btn.textContent='Signing in…';
+    try{
+      const res=await fetch('/api/admin/login',{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({password:document.getElementById('pw').value})
+      });
+      if(res.ok){ window.location.href='/admin'; return; }
+      const d=await res.json().catch(()=>({}));
+      err.textContent=d.error||'Login failed.'; err.className='err show';
+    }catch(e){ err.textContent='Network error.'; err.className='err show'; }
+    btn.disabled=false; btn.textContent='Sign in';
+  };
+</script>
+</body>
+</html>
