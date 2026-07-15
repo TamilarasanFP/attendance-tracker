@@ -5,14 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Attendance — Admin Dashboard</title>
 <style>
-  :root{--bg:#0f172a;--card:#1e293b;--muted:#94a3b8;--txt:#e2e8f0;--acc:#38bdf8;--ok:#22c55e;--warn:#f59e0b;--bad:#ef4444;--border:#334155;}
+  :root{--bg:#0f172a;--card:#1e293b;--muted:#94a3b8;--txt:#e2e8f0;--acc:#F15137;--ok:#22c55e;--warn:#f59e0b;--bad:#ef4444;--border:#334155;--field:#0b1424;}
+  :root[data-theme="light"]{--bg:#f4f6f9;--card:#ffffff;--muted:#5b6572;--txt:#1e293b;--border:#dbe1e8;--field:#eef1f5;}
+  :root[data-theme="light"] .pill.start,:root[data-theme="light"] .pill.complete{color:#15803d;}
+  :root[data-theme="light"] .pill.end,:root[data-theme="light"] .pill.partial{color:#b45309;}
+  :root[data-theme="light"] .pill.absent{color:#b91c1c;}
+  :root[data-theme="light"] .tag{color:#475569;}
   *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
   body{margin:0;background:var(--bg);color:var(--txt);}
   header{padding:16px 22px;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
   header h1{font-size:18px;margin:0;}
   .tabs{display:flex;gap:8px;}
   .tab{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--txt);cursor:pointer;font-size:14px;}
-  .tab.active{background:var(--acc);color:#04263a;border-color:var(--acc);font-weight:600;}
+  .tab.active{background:var(--acc);color:#ffffff;border-color:var(--acc);font-weight:600;}
   .right{margin-left:auto;display:flex;gap:10px;}
   main{max-width:1080px;margin:0 auto;padding:24px 18px;}
   .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:18px;}
@@ -29,13 +34,18 @@
   .pill.absent{background:rgba(239,68,68,.15);color:#fca5a5;}
   .tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:5px;font-size:10px;background:rgba(148,163,184,.18);color:#cbd5e1;}
   .missing{color:#64748b;}
+  .maplink{text-decoration:none;font-size:13px;margin-left:2px;}
+  .mini{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:5px;cursor:pointer;font-size:12px;padding:3px 10px;}
+  .mini:hover{color:var(--txt);border-color:var(--acc);}
+  .mini.danger:hover{color:#fca5a5;border-color:var(--bad);}
   .thumb{width:56px;height:42px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:pointer;background:#000;}
   .thumb.ph{display:inline-block;color:#475569;font-size:10px;text-align:center;line-height:42px;}
   .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
-  input,textarea{padding:10px 12px;border-radius:9px;border:1px solid var(--border);background:#0b1424;color:var(--txt);font-size:14px;}
+  input,textarea,select{padding:10px 12px;border-radius:9px;border:1px solid var(--border);background:var(--field);color:var(--txt);font-size:14px;}
   input.search{max-width:220px;}
+  .toolbar select{max-width:190px;}
   .ghost{padding:9px 14px;border:1px solid var(--border);background:transparent;color:var(--txt);border-radius:9px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-block;}
-  .btn{padding:10px 16px;border:none;border-radius:9px;background:var(--acc);color:#04263a;font-weight:600;cursor:pointer;font-size:14px;}
+  .btn{padding:10px 16px;border:none;border-radius:9px;background:var(--acc);color:#ffffff;font-weight:600;cursor:pointer;font-size:14px;}
   .empty{text-align:center;color:var(--muted);padding:34px 10px;}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
   .row label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;}
@@ -43,6 +53,37 @@
   .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
   .lightbox img{max-width:100%;max-height:100%;border-radius:10px;}
   .summary{font-size:13px;color:var(--muted);margin-bottom:12px;}
+  .calrow{display:flex;gap:16px;flex-wrap:wrap;align-items:stretch;margin-bottom:18px;}
+  .cal{flex:0 0 264px;width:264px;background:var(--field);border:1px solid var(--border);border-radius:12px;padding:12px;}
+  .stats{flex:1;min-width:250px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1fr;gap:12px;}
+  .stat{background:var(--field);border:1px solid var(--border);border-radius:10px;padding:12px 16px;cursor:pointer;display:flex;flex-direction:column;justify-content:center;transition:border-color .12s;}
+  .stat:hover{border-color:var(--acc);}
+  .stat.active{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset;}
+  .stat .n{font-size:26px;font-weight:700;line-height:1;}
+  .stat .l{font-size:11px;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.03em;}
+  .stat.total .n{color:var(--acc);}
+  .stat.present .n{color:#22c55e;}
+  .stat.partial .n{color:#f59e0b;}
+  .stat.absent .n{color:#ef4444;}
+  .pager{display:flex;align-items:center;gap:12px;margin-top:14px;font-size:13px;color:var(--muted);}
+  .pager button[disabled]{opacity:.4;cursor:not-allowed;}
+  .alpha{display:flex;flex-wrap:wrap;gap:4px;margin-top:12px;}
+  .alpha-b{min-width:28px;padding:4px 7px;border:1px solid var(--border);background:transparent;color:var(--txt);border-radius:6px;cursor:pointer;font-size:12px;}
+  .alpha-b:hover{border-color:var(--acc);}
+  .alpha-b.active{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:700;}
+  .alpha-b.off{opacity:.3;cursor:not-allowed;}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .cal-head b{font-size:13px;}
+  .cal-nav{border:1px solid var(--border);background:transparent;color:var(--txt);border-radius:6px;cursor:pointer;font-size:13px;line-height:1;padding:3px 9px;}
+  .cal-nav:hover{border-color:var(--acc);color:var(--acc);}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;}
+  .cal-grid .dow{font-size:9px;color:var(--muted);text-align:center;padding:2px 0;text-transform:uppercase;letter-spacing:.02em;}
+  .cal-day{height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;font-size:12px;border:1px solid transparent;}
+  .cal-day:hover{background:rgba(241,81,55,.18);}
+  .cal-day.today{border-color:var(--acc);}
+  .cal-day.sel{background:var(--acc);color:#fff;font-weight:700;}
+  .cal-day.empty{cursor:default;}
+  .cal-day.empty:hover{background:transparent;}
 </style>
 </head>
 <body>
@@ -53,6 +94,7 @@
     <button class="tab" data-view="employees">Employees</button>
   </div>
   <div class="right">
+    <button class="ghost" id="themeBtn">☀️ Light</button>
     <a class="ghost" href="/">Check-in page</a>
     <button class="ghost" id="logoutBtn">Log out</button>
   </div>
@@ -62,13 +104,18 @@
   <!-- ATTENDANCE (by date) -->
   <section id="attendanceView">
     <div class="card">
+      <div class="calrow">
+        <div id="cal" class="cal"></div>
+        <div id="stats" class="stats"></div>
+      </div>
       <div class="toolbar">
-        <div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">Date</label>
-          <input type="date" id="date"></div>
-        <input class="search" id="search" placeholder="Filter by name or ID…" style="align-self:flex-end;">
-        <button class="ghost" id="refreshBtn" style="align-self:flex-end;">Refresh</button>
-        <a class="ghost" href="/api/export" style="align-self:flex-end;">Export CSV (all)</a>
-        <button class="ghost" id="clearBtn" style="align-self:flex-end;">Clear all records</button>
+        <input class="search" id="search" placeholder="Filter by name or ID…">
+        <select id="fBU"><option value="">All business units</option></select>
+        <select id="fTeam"><option value="">All teams</option></select>
+        <select id="fCampus"><option value="">All campuses</option></select>
+        <button class="ghost" id="refreshBtn">Refresh</button>
+        <button class="ghost" id="exportBtn">Export CSV</button>
+        <button class="ghost" id="clearBtn">Clear all records</button>
       </div>
       <div class="summary" id="summary"></div>
       <div id="dayTable"><div class="empty">Loading…</div></div>
@@ -80,21 +127,30 @@
     <div class="card">
       <h2>Add employee</h2>
       <div class="row">
-        <div><label>Employee ID</label><input id="empIdIn" placeholder="EMP1042"></div>
+        <div><label>Associate ID</label><input id="empIdIn" placeholder="135454"></div>
         <div><label>Name</label><input id="empNameIn" placeholder="Priya Kumar"></div>
+        <div><label>Business Unit</label><input id="empBUIn" placeholder="Engineering"></div>
+        <div><label>Team</label><input id="empTeamIn" placeholder="Platform"></div>
+        <div><label>Campus</label><input id="empCampusIn" placeholder="Chennai"></div>
         <button class="btn" id="addEmpBtn">Add</button>
       </div>
       <div class="msg" id="addMsg"></div>
     </div>
     <div class="card">
       <h2>Bulk import</h2>
-      <p style="font-size:13px;color:var(--muted);margin:0 0 8px;">One employee per line as <code>Name, EmployeeID</code> (comma or tab separated). A header row like <code>Name,ID</code> is ignored.</p>
-      <textarea id="bulkText" rows="5" style="width:100%;" placeholder="Priya Kumar, EMP1042&#10;Arun Raj, EMP1043"></textarea>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 8px;">One employee per line as <code>Name, Associate ID, Business Unit, Team, Campus</code> (comma or tab separated). Business Unit, Team and Campus are optional. A header row is ignored — you can paste straight from your sheet.</p>
+      <textarea id="bulkText" rows="5" style="width:100%;" placeholder="Priya Kumar, 135454, Engineering, Platform, Chennai&#10;Arun Raj, 135628, Sales, Field, Bangalore"></textarea>
       <div style="margin-top:10px;"><button class="btn" id="bulkBtn">Import</button></div>
       <div class="msg" id="bulkMsg"></div>
     </div>
     <div class="card">
-      <h2>Roster (<span id="empCount">0</span>)</h2>
+      <h2 style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <span>Employees (<span id="empCount">0</span>)</span>
+        <span style="display:flex;gap:8px;">
+          <input id="empSearch" placeholder="Filter by any field…" style="max-width:220px;">
+          <button class="ghost" id="clearRosterBtn">Clear all</button>
+        </span>
+      </h2>
       <div id="empTable"><div class="empty">Loading…</div></div>
     </div>
   </section>
@@ -104,6 +160,17 @@
 
 <script>
 const $ = id => document.getElementById(id);
+// ---- theme (persisted, shared across pages) ----
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  try{ localStorage.setItem('theme', t); }catch(e){}
+  const b=document.getElementById('themeBtn'); if(b) b.textContent = t==='light' ? '🌙 Dark' : '☀️ Light';
+}
+(function(){ let t='dark'; try{ t=localStorage.getItem('theme')||'dark'; }catch(e){} applyTheme(t); })();
+document.getElementById('themeBtn').onclick=()=>{
+  const cur=document.documentElement.getAttribute('data-theme')==='light'?'light':'dark';
+  applyTheme(cur==='light'?'dark':'light');
+};
 function toLogin(){ window.location.href='/admin/login'; }
 function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 async function api(path, opts){
@@ -126,40 +193,185 @@ document.querySelectorAll('.tab').forEach(t=>{
 
 // ---- attendance by date ----
 let DAY=[];
-function todayStr(){ const d=new Date(),p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
-$('date').value=todayStr();
-$('date').onchange=loadDay;
+const p2=n=>String(n).padStart(2,'0');
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()); }
+
+let selectedDate=todayStr();
+let calY, calM;
+function initCal(){ const d=new Date(); calY=d.getFullYear(); calM=d.getMonth(); renderCal(); }
+function renderCal(){
+  const first=new Date(calY, calM, 1);
+  const startDow=(first.getDay()+6)%7;                 // Monday-first grid
+  const days=new Date(calY, calM+1, 0).getDate();
+  const label=first.toLocaleString('en-GB',{month:'long',year:'numeric'});
+  let h=`<div class="cal-head"><button class="cal-nav" id="calPrev">‹</button><b>${label}</b><button class="cal-nav" id="calNext">›</button></div><div class="cal-grid">`;
+  for(const d of ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']) h+=`<div class="dow">${d}</div>`;
+  for(let i=0;i<startDow;i++) h+='<div class="cal-day empty"></div>';
+  for(let day=1;day<=days;day++){
+    const ds=`${calY}-${p2(calM+1)}-${p2(day)}`;
+    const cls=['cal-day'];
+    if(ds===todayStr()) cls.push('today');
+    if(ds===selectedDate) cls.push('sel');
+    h+=`<div class="${cls.join(' ')}" data-date="${ds}">${day}</div>`;
+  }
+  h+='</div>';
+  $('cal').innerHTML=h;
+  $('calPrev').onclick=()=>{ if(--calM<0){calM=11;calY--;} renderCal(); };
+  $('calNext').onclick=()=>{ if(++calM>11){calM=0;calY++;} renderCal(); };
+  $('cal').querySelectorAll('.cal-day[data-date]').forEach(c=>c.onclick=()=>{ selectedDate=c.dataset.date; renderCal(); loadDay(); });
+}
 $('refreshBtn').onclick=loadDay;
-$('search').oninput=renderDay;
+$('search').oninput=()=>{ page=1; renderDay(); };
+['fBU','fTeam','fCampus'].forEach(id=>$(id).onchange=()=>{ page=1; renderDay(); });
+
+const PAGE_SIZE=50;
+let statusFilter='all';   // all | complete | partial | absent
+let letterFilter='';      // '' = all, else 'A'..'Z'
+let page=1;
 
 async function loadDay(){
-  try{ DAY=await (await api('/api/day/'+$('date').value)).json(); }
+  try{ DAY=await (await api('/api/day/'+selectedDate)).json(); }
   catch(e){ if(e.message!=='unauth') DAY=[]; }
+  page=1; letterFilter='';
+  populateFilters();
   renderDay();
 }
-function renderDay(){
-  const q=$('search').value.trim().toLowerCase();
+function alphabetBar(available){
+  const letters='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  let h='<div class="alpha">';
+  h+=`<button class="alpha-b ${letterFilter===''?'active':''}" data-letter="">All</button>`;
+  for(const L of letters){
+    const has=available.has(L);
+    h+=`<button class="alpha-b ${letterFilter===L?'active':''} ${has?'':'off'}" data-letter="${L}" ${has?'':'disabled'}>${L}</button>`;
+  }
+  return h+'</div>';
+}
+function wireAlpha(el){
+  el.querySelectorAll('button[data-letter]').forEach(b=>b.onclick=()=>{ letterFilter=b.dataset.letter; page=1; renderDay(); });
+}
+function populateFilters(){
+  const uniq=k=>[...new Set(DAY.map(r=>r[k]).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const fill=(id,vals,allLabel)=>{
+    const sel=$(id), cur=sel.value;
+    sel.innerHTML=`<option value="">${allLabel}</option>`+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    sel.value=vals.includes(cur)?cur:'';
+  };
+  fill('fBU',uniq('businessUnit'),'All business units');
+  fill('fTeam',uniq('team'),'All teams');
+  fill('fCampus',uniq('campus'),'All campuses');
+}
+// Rows filtered by search + BU/Team/Campus (everything except the status-card filter).
+function baseFiltered(){
   let rows=DAY;
-  if(q) rows=rows.filter(r=>r.name.toLowerCase().includes(q)||r.empId.toLowerCase().includes(q));
-  const present=DAY.filter(r=>r.status!=='absent').length;
-  const absent=DAY.filter(r=>r.status==='absent').length;
-  $('summary').textContent=`${DAY.length} employees · ${present} checked in · ${absent} absent`;
-  const el=$('dayTable');
-  if(!rows.length){ el.innerHTML='<div class="empty">No employees or records for this date. Add employees under the Employees tab.</div>'; return; }
-  let html='<table><thead><tr><th>Name</th><th>Employee ID</th><th>Status</th><th>Start</th><th>End</th><th>Worked</th><th>Start photo</th><th>End photo</th></tr></thead><tbody>';
+  const q=$('search').value.trim().toLowerCase();
+  const fbu=$('fBU').value, ft=$('fTeam').value, fc=$('fCampus').value;
+  if(fbu) rows=rows.filter(r=>(r.businessUnit||'')===fbu);
+  if(ft)  rows=rows.filter(r=>(r.team||'')===ft);
+  if(fc)  rows=rows.filter(r=>(r.campus||'')===fc);
+  if(q)   rows=rows.filter(r=>r.name.toLowerCase().includes(q)||r.empId.toLowerCase().includes(q));
+  return rows;
+}
+function renderStats(){
+  const base=baseFiltered();
+  const total=base.length;
+  const present=base.filter(r=>r.status==='complete').length;
+  const partial=base.filter(r=>r.status==='partial').length;
+  const absent=base.filter(r=>r.status==='absent').length;
+  const card=(f,cls,label,n)=>`<div class="stat ${cls} ${statusFilter===f?'active':''}" data-filter="${f}"><div class="n">${n}</div><div class="l">${label}</div></div>`;
+  $('stats').innerHTML=
+    card('all','total','Total employees',total)+
+    card('complete','present','Present',present)+
+    card('partial','partial','Partial',partial)+
+    card('absent','absent','Absent',absent);
+  $('stats').querySelectorAll('.stat').forEach(s=>s.onclick=()=>{
+    statusFilter = statusFilter===s.dataset.filter ? 'all' : s.dataset.filter; // click again to clear
+    page=1; renderDay();
+  });
+}
+// Rows after ALL active filters (search + BU/Team/Campus + status + letter). No pagination.
+function filteredRows(){
+  let rows=baseFiltered();
+  if(statusFilter!=='all') rows=rows.filter(r=>r.status===statusFilter);
+  if(letterFilter) rows=rows.filter(r=>(r.name||'').toUpperCase().startsWith(letterFilter));
+  return rows;
+}
+$('exportBtn').onclick=()=>{
+  const rows=filteredRows();
+  if(!rows.length){ alert('Nothing to export for the current filters.'); return; }
+  const loc=r=>(r&&r.lat!=null&&r.lng!=null)?`${r.lat},${r.lng}`:'';
+  const stat=s=>s==='complete'?'present':s;
+  const data=[['Name','Associate ID','Business Unit','Team','Campus','Date','Status','Start Time','End Time','Worked','Start Location','End Location']];
   for(const r of rows){
+    data.push([r.name,r.empId,r.businessUnit||'',r.team||'',r.campus||'',selectedDate,stat(r.status),r.start?r.start.time:'',r.end?r.end.time:'',r.worked||'',loc(r.start),loc(r.end)]);
+  }
+  const csv=data.map(row=>row.map(c=>`"${String(c==null?'':c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`attendance-${selectedDate}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+function renderDay(){
+  renderStats();
+  let rows=baseFiltered();
+  if(statusFilter!=='all') rows=rows.filter(r=>r.status===statusFilter);
+
+  // which first-letters exist in the current (pre-letter) set
+  const available=new Set(rows.map(r=>(r.name||'').charAt(0).toUpperCase()).filter(c=>c>='A'&&c<='Z'));
+  if(letterFilter) rows=rows.filter(r=>(r.name||'').toUpperCase().startsWith(letterFilter));
+
+  const fLabel={all:'all',complete:'present',partial:'partial',absent:'absent'}[statusFilter];
+  $('summary').textContent=`Attendance for ${selectedDate}`+(statusFilter==='all'?'':` · showing ${fLabel}`)+(letterFilter?` · names in ${letterFilter}`:'');
+
+  const el=$('dayTable');
+  if(!rows.length){
+    el.innerHTML='<div class="empty">No matching employees for this date/filter.</div>'+alphabetBar(available);
+    wireAlpha(el);
+    return;
+  }
+
+  const pages=Math.max(1,Math.ceil(rows.length/PAGE_SIZE));
+  if(page>pages) page=pages;
+  const startI=(page-1)*PAGE_SIZE;
+  const pageRows=rows.slice(startI,startI+PAGE_SIZE);
+
+  let html='<table><thead><tr><th>Name</th><th>Associate ID</th><th>Business Unit</th><th>Team</th><th>Campus</th><th>Status</th><th>Start</th><th>End</th><th>Worked</th><th>Start photo</th><th>End photo</th></tr></thead><tbody>';
+  for(const r of pageRows){
     const st=r.status==='complete'?'<span class="pill complete">present</span>':
              r.status==='partial'?'<span class="pill partial">partial</span>':
              '<span class="pill absent">absent</span>';
     const tag=r.inRoster?'':'<span class="tag">walk-in</span>';
-    const start=r.start?`<span class="pill start">${esc(r.start.time)}</span>`:'<span class="missing">—</span>';
-    const end=r.end?`<span class="pill end">${esc(r.end.time)}</span>`:'<span class="missing">—</span>';
+    const start=entryCell(r.start,'start');
+    const end=entryCell(r.end,'end');
     const worked=r.worked?`<b>${esc(r.worked)}</b>`:'<span class="missing">—</span>';
-    html+=`<tr class="${r.status==='absent'?'absent':''}"><td>${esc(r.name)}${tag}</td><td>${esc(r.empId)}</td><td>${st}</td><td>${start}</td><td>${end}</td><td>${worked}</td><td>${thumb(r.start)}</td><td>${thumb(r.end)}</td></tr>`;
+    const bu=r.businessUnit?esc(r.businessUnit):'<span class="missing">—</span>';
+    const team=r.team?esc(r.team):'<span class="missing">—</span>';
+    const camp=r.campus?esc(r.campus):'<span class="missing">—</span>';
+    html+=`<tr class="${r.status==='absent'?'absent':''}"><td>${esc(r.name)}${tag}</td><td>${esc(r.empId)}</td><td>${bu}</td><td>${team}</td><td>${camp}</td><td>${st}</td><td>${start}</td><td>${end}</td><td>${worked}</td><td>${thumb(r.start)}</td><td>${thumb(r.end)}</td></tr>`;
   }
   html+='</tbody></table>';
+  html+=`<div class="pager">`+
+    `<button class="ghost" data-pg="prev" ${page<=1?'disabled':''}>‹ Prev</button>`+
+    `<span>${startI+1}–${startI+pageRows.length} of ${rows.length}${pages>1?` · page ${page}/${pages}`:''}</span>`+
+    `<button class="ghost" data-pg="next" ${page>=pages?'disabled':''}>Next ›</button>`+
+    `</div>`;
+  html+=alphabetBar(available);
   el.innerHTML=html;
+  wireAlpha(el);
   el.querySelectorAll('img.thumb').forEach(im=>im.onclick=()=>{ $('lightimg').src=im.dataset.full; $('lightbox').style.display='flex'; });
+  el.querySelectorAll('button[data-pg]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.pg==='prev'&&page>1) page--;
+    else if(b.dataset.pg==='next'&&page<pages) page++;
+    renderDay();
+  });
+}
+function entryCell(entry, cls){
+  if(!entry) return '<span class="missing">—</span>';
+  let s=`<span class="pill ${cls}">${esc(entry.time)}</span>`;
+  if(entry.lat!=null && entry.lng!=null){
+    s+=` <a class="maplink" href="https://www.google.com/maps?q=${entry.lat},${entry.lng}" target="_blank" rel="noopener" title="${entry.lat.toFixed(5)}, ${entry.lng.toFixed(5)}">📍</a>`;
+  }
+  return s;
 }
 function thumb(r){
   if(!r||!r.photo) return '<span class="thumb ph">—</span>';
@@ -173,47 +385,116 @@ $('clearBtn').onclick=async()=>{
 };
 
 // ---- employees ----
+// Show a message, then auto-clear it after 10 seconds.
+const _msgTimers={};
+function flashMsg(id, text){
+  const el=$(id); if(!el) return;
+  el.textContent=text;
+  clearTimeout(_msgTimers[id]);
+  _msgTimers[id]=setTimeout(()=>{ el.textContent=''; }, 10000);
+}
 $('addEmpBtn').onclick=async()=>{
   const empId=$('empIdIn').value.trim(), name=$('empNameIn').value.trim();
-  if(!empId||!name){ $('addMsg').textContent='Enter both name and employee ID.'; return; }
+  const businessUnit=$('empBUIn').value.trim(), team=$('empTeamIn').value.trim(), campus=$('empCampusIn').value.trim();
+  if(!empId||!name){ flashMsg('addMsg','Enter both name and associate ID.'); return; }
   try{
-    const res=await api('/api/employees',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,empId})});
+    const res=await api('/api/employees',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,empId,businessUnit,team,campus})});
     const d=await res.json();
-    if(res.ok){ $('addMsg').textContent='Saved. Roster has '+d.count+' employees.'; $('empIdIn').value=''; $('empNameIn').value=''; loadEmployees(); }
-    else $('addMsg').textContent=d.error||'Could not save.';
+    if(res.ok){ flashMsg('addMsg','1 user added.'); $('empIdIn').value=''; $('empNameIn').value=''; $('empBUIn').value=''; $('empTeamIn').value=''; $('empCampusIn').value=''; loadEmployees(); }
+    else flashMsg('addMsg', d.error||'Could not save.');
   }catch(e){}
 };
 $('bulkBtn').onclick=async()=>{
   const text=$('bulkText').value;
-  if(!text.trim()){ $('bulkMsg').textContent='Paste some lines first.'; return; }
+  if(!text.trim()){ flashMsg('bulkMsg','Paste some lines first.'); return; }
   try{
     const res=await api('/api/employees/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
     const d=await res.json();
-    $('bulkMsg').textContent=`Added ${d.added}, updated ${d.updated}, skipped ${d.skipped}. Roster now ${d.count}.`;
+    let msg=`${d.added} user${d.added===1?'':'s'} added`;
+    if(d.duplicates) msg+=`, ${d.duplicates} duplicate${d.duplicates===1?'':'s'} skipped`;
+    if(d.skipped) msg+=`, ${d.skipped} invalid skipped`;
+    flashMsg('bulkMsg', msg+'.');
     $('bulkText').value=''; loadEmployees();
   }catch(e){}
 };
+
+// ---- roster list (view / edit / delete) ----
+let EMP_LIST=[], editingEmpId=null, empPage=1;
+const EMP_PAGE_SIZE=50;
+$('empSearch').oninput=()=>{ empPage=1; renderEmployees(); };
+$('clearRosterBtn').onclick=async()=>{
+  if(!confirm('Remove ALL employees from the roster? Attendance records are kept.')) return;
+  try{ await api('/api/employees',{method:'DELETE'}); loadEmployees(); }catch(e){}
+};
 async function loadEmployees(){
-  let list=[];
-  try{ list=await (await api('/api/employees')).json(); }catch(e){ return; }
-  $('empCount').textContent=list.length;
+  try{ EMP_LIST=await (await api('/api/employees')).json(); }catch(e){ return; }
+  $('empCount').textContent=EMP_LIST.length;
+  renderEmployees();
+}
+function renderEmployees(){
+  const q=($('empSearch').value||'').trim().toLowerCase();
+  let list=EMP_LIST;
+  if(q) list=list.filter(e=>[e.empId,e.name,e.businessUnit,e.team,e.campus].some(v=>(v||'').toLowerCase().includes(q)));
   const el=$('empTable');
-  if(!list.length){ el.innerHTML='<div class="empty">No employees yet. Add one above.</div>'; return; }
-  let html='<table><thead><tr><th>Name</th><th>Employee ID</th><th></th></tr></thead><tbody>';
-  for(const e of list){
-    html+=`<tr><td>${esc(e.name)}</td><td>${esc(e.empId)}</td><td style="text-align:right;"><button class="ghost" data-id="${esc(e.empId)}">Remove</button></td></tr>`;
+  if(!EMP_LIST.length){ el.innerHTML='<div class="empty">No employees yet. Add one above.</div>'; return; }
+  if(!list.length){ el.innerHTML='<div class="empty">No employees match the filter.</div>'; return; }
+  const pages=Math.max(1,Math.ceil(list.length/EMP_PAGE_SIZE));
+  if(empPage>pages) empPage=pages;
+  if(empPage<1) empPage=1;
+  const startI=(empPage-1)*EMP_PAGE_SIZE;
+  const pageList=list.slice(startI,startI+EMP_PAGE_SIZE);
+  let html='<table><thead><tr><th>Associate ID</th><th>Name</th><th>Business Unit</th><th>Team</th><th>Campus</th><th></th></tr></thead><tbody>';
+  for(const e of pageList){
+    if(e.empId===editingEmpId){
+      html+=`<tr><td>${esc(e.empId)}</td>`+
+        `<td><input id="edName" value="${esc(e.name)}"></td>`+
+        `<td><input id="edBU" value="${esc(e.businessUnit||'')}"></td>`+
+        `<td><input id="edTeam" value="${esc(e.team||'')}"></td>`+
+        `<td><input id="edCamp" value="${esc(e.campus||'')}"></td>`+
+        `<td style="text-align:right;white-space:nowrap;"><button class="mini" data-save="${esc(e.empId)}">Save</button> <button class="mini" data-cancel="1">Cancel</button></td></tr>`;
+    }else{
+      html+=`<tr><td>${esc(e.empId)}</td><td>${esc(e.name)}</td>`+
+        `<td>${e.businessUnit?esc(e.businessUnit):'<span class="missing">—</span>'}</td>`+
+        `<td>${e.team?esc(e.team):'<span class="missing">—</span>'}</td>`+
+        `<td>${e.campus?esc(e.campus):'<span class="missing">—</span>'}</td>`+
+        `<td style="text-align:right;white-space:nowrap;"><button class="mini" data-edit="${esc(e.empId)}">Edit</button> <button class="mini danger" data-del="${esc(e.empId)}">Delete</button></td></tr>`;
+    }
   }
   html+='</tbody></table>';
+  html+=`<div class="pager">`+
+    `<button class="ghost" data-emppg="prev" ${empPage<=1?'disabled':''}>‹ Prev</button>`+
+    `<span>${startI+1}–${startI+pageList.length} of ${list.length}${pages>1?` · page ${empPage}/${pages}`:''}</span>`+
+    `<button class="ghost" data-emppg="next" ${empPage>=pages?'disabled':''}>Next ›</button>`+
+    `</div>`;
   el.innerHTML=html;
-  el.querySelectorAll('button[data-id]').forEach(b=>b.onclick=async()=>{
-    if(!confirm('Remove '+b.dataset.id+' from the roster? (Their past attendance records are kept.)')) return;
-    try{ await api('/api/employees/'+encodeURIComponent(b.dataset.id),{method:'DELETE'}); loadEmployees(); }catch(e){}
+  el.querySelectorAll('button[data-edit]').forEach(b=>b.onclick=()=>{ editingEmpId=b.dataset.edit; renderEmployees(); });
+  el.querySelectorAll('button[data-cancel]').forEach(b=>b.onclick=()=>{ editingEmpId=null; renderEmployees(); });
+  el.querySelectorAll('button[data-save]').forEach(b=>b.onclick=()=>saveEmp(b.dataset.save));
+  el.querySelectorAll('button[data-del]').forEach(b=>b.onclick=()=>delEmp(b.dataset.del));
+  el.querySelectorAll('button[data-emppg]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.emppg==='prev'&&empPage>1) empPage--;
+    else if(b.dataset.emppg==='next'&&empPage<pages) empPage++;
+    renderEmployees();
   });
+}
+async function saveEmp(empId){
+  const name=$('edName').value.trim(), businessUnit=$('edBU').value.trim(), team=$('edTeam').value.trim(), campus=$('edCamp').value.trim();
+  if(!name){ alert('Name is required.'); return; }
+  try{
+    const res=await api('/api/employees/'+encodeURIComponent(empId),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,businessUnit,team,campus})});
+    if(!res.ok){ const d=await res.json().catch(()=>({})); alert(d.error||'Update failed.'); return; }
+    editingEmpId=null; loadEmployees();
+  }catch(e){}
+}
+async function delEmp(empId){
+  if(!confirm('Remove '+empId+' from the roster? Past attendance records are kept.')) return;
+  try{ await api('/api/employees/'+encodeURIComponent(empId),{method:'DELETE'}); loadEmployees(); }catch(e){}
 }
 
 // ---- logout ----
 $('logoutBtn').onclick=async()=>{ try{ await fetch('/api/admin/logout',{method:'POST'}); }catch(e){} toLogin(); };
 
+initCal();
 loadDay();
 </script>
 </body>

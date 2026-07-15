@@ -5,15 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin Login</title>
 <style>
-  :root{--bg:#0f172a;--card:#1e293b;--muted:#94a3b8;--txt:#e2e8f0;--acc:#38bdf8;--warn:#f59e0b;--border:#334155;}
+  :root{--bg:#0f172a;--card:#1e293b;--muted:#94a3b8;--txt:#e2e8f0;--acc:#F15137;--warn:#f59e0b;--border:#334155;--field:#0b1424;}
+  :root[data-theme="light"]{--bg:#f4f6f9;--card:#ffffff;--muted:#5b6572;--txt:#1e293b;--border:#dbe1e8;--field:#eef1f5;}
+  .themeToggle{position:fixed;top:16px;right:16px;font-size:13px;color:var(--muted);border:1px solid var(--border);background:transparent;padding:7px 13px;border-radius:8px;cursor:pointer;}
   *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
   body{margin:0;background:var(--bg);color:var(--txt);display:flex;min-height:100vh;align-items:center;justify-content:center;padding:20px;}
   .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;width:100%;max-width:360px;}
   h1{font-size:20px;margin:0 0 4px;}
   p.sub{color:var(--muted);font-size:13px;margin:0 0 20px;}
   label{display:block;font-size:13px;color:var(--muted);margin:0 0 6px;}
-  input{width:100%;padding:12px;border-radius:9px;border:1px solid var(--border);background:#0b1424;color:var(--txt);font-size:15px;}
-  button{margin-top:18px;width:100%;padding:13px;border:none;border-radius:9px;background:var(--acc);color:#04263a;font-weight:700;font-size:15px;cursor:pointer;}
+  input{width:100%;padding:12px;border-radius:9px;border:1px solid var(--border);background:var(--field);color:var(--txt);font-size:15px;}
+  button{margin-top:18px;width:100%;padding:13px;border:none;border-radius:9px;background:var(--acc);color:#ffffff;font-weight:700;font-size:15px;cursor:pointer;}
   button:disabled{opacity:.6;cursor:not-allowed;}
   .err{margin-top:14px;font-size:14px;color:#fde68a;background:rgba(245,158,11,.12);border:1px solid var(--warn);border-radius:9px;padding:10px 12px;display:none;}
   .err.show{display:block;}
@@ -21,6 +23,7 @@
 </style>
 </head>
 <body>
+  <button class="themeToggle" id="themeBtn">☀️ Light</button>
   <form class="card" id="loginForm">
     <h1>🔒 Admin Login</h1>
     <p class="sub">Enter the admin password to view attendance.</p>
@@ -31,6 +34,16 @@
     <a class="back" href="/">← Back to check-in</a>
   </form>
 <script>
+  function applyTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    try{ localStorage.setItem('theme', t); }catch(e){}
+    const b=document.getElementById('themeBtn'); if(b) b.textContent = t==='light' ? '🌙 Dark' : '☀️ Light';
+  }
+  (function(){ let t='dark'; try{ t=localStorage.getItem('theme')||'dark'; }catch(e){} applyTheme(t); })();
+  document.getElementById('themeBtn').onclick=()=>{
+    const cur=document.documentElement.getAttribute('data-theme')==='light'?'light':'dark';
+    applyTheme(cur==='light'?'dark':'light');
+  };
   const form=document.getElementById('loginForm');
   const err=document.getElementById('err');
   const btn=document.getElementById('btn');

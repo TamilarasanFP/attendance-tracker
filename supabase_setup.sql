@@ -5,10 +5,27 @@
 
 -- 1) Employee roster
 create table if not exists public.employees (
-  emp_id     text primary key,
-  name       text not null,
-  created_at timestamptz not null default now()
+  emp_id        text primary key,   -- Associate ID
+  name          text not null,
+  business_unit text,
+  team          text,
+  campus        text,
+  created_at    timestamptz not null default now()
 );
+-- Migrations for an existing table (safe to re-run):
+-- rename old 'vertical' -> 'business_unit' only if that's still the situation
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_schema='public' and table_name='employees' and column_name='vertical')
+     and not exists (select 1 from information_schema.columns
+             where table_schema='public' and table_name='employees' and column_name='business_unit') then
+    alter table public.employees rename column vertical to business_unit;
+  end if;
+end $$;
+alter table public.employees add column if not exists business_unit text;
+alter table public.employees add column if not exists team          text;
+alter table public.employees add column if not exists campus        text;
 
 -- 2) Attendance records
 create table if not exists public.records (
@@ -21,10 +38,15 @@ create table if not exists public.records (
   captured_at timestamptz,               -- exact moment the photo was taken
   server_time timestamptz,               -- when the server received it
   photo       text,                      -- filename in the storage bucket
+  lat         double precision,          -- capture location
+  lng         double precision,
   created_at  timestamptz not null default now()
 );
 create index if not exists records_date_idx on public.records(date);
 create index if not exists records_emp_idx  on public.records(emp_id);
+-- If the records table already existed, add the location columns:
+alter table public.records add column if not exists lat double precision;
+alter table public.records add column if not exists lng double precision;
 
 -- 3) Lock the tables down. The server uses the service_role key, which bypasses
 --    RLS. Enabling RLS with NO policies means the anon/public key can read
