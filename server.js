@@ -6,6 +6,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
+const compression = require('compression');
 const db = require('./db');
 
 const app = express();
@@ -84,8 +85,9 @@ function workedLabel(start, end) {
   return h ? `${h}h ${mins}m` : `${mins}m`;
 }
 
+app.use(compression());                 // gzip JSON/HTML/CSS responses
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h', etag: true }));
 const VIEWS = path.join(__dirname, 'views');
 
 // ---- ADMIN AUTH ----
@@ -162,6 +164,57 @@ app.get('/api/lookup/:empId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ---- dropdown option lists (seeded once, then admin-managed) ----
+const DEFAULT_OPTIONS = {
+  business_unit: ['FACE Prep Central', 'FACE Prep Degree Programs', 'FACE Prep Skill Development'],
+  team: ['Management', 'Training', 'Talent Acquisition', 'Sales', 'Finance', 'Delivery', 'Talent Management', 'Client Delivery', 'Enterprise Relations', 'DSA', 'Marketing'],
+  campus: ['VIT', 'PSG', 'S-Vyasa', 'Kristu University', 'NA', 'Alliance University', 'BCAS', 'NAAS']
+};
+async function getSeededOptions() {
+  let o = await db.listOptions();
+  if (!o.business_unit.length && !o.team.length && !o.campus.length) {
+    const pairs = [];
+    for (const [category, vals] of Object.entries(DEFAULT_OPTIONS)) for (const value of vals) pairs.push({ category, value });
+    await db.addOptions(pairs);
+    o = await db.listOptions();
+  }
+  return o;
+}
+// Register any non-empty BU/Team/Campus values as options (so custom entries persist).
+async function registerOptions(emps) {
+  const pairs = [];
+  for (const e of emps) {
+    if (e.businessUnit) pairs.push({ category: 'business_unit', value: e.businessUnit });
+    if (e.team) pairs.push({ category: 'team', value: e.team });
+    if (e.campus) pairs.push({ category: 'campus', value: e.campus });
+  }
+  if (pairs.length) { try { await db.addOptions(pairs); } catch (e) { /* non-fatal */ } }
+}
+
+app.get('/api/options', requireAdmin, async (req, res) => {
+  try { res.json(await getSeededOptions()); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/options', requireAdmin, async (req, res) => {
+  try {
+    const category = (req.body.category || '').trim();
+    const value = (req.body.value || '').trim();
+    if (!['business_unit', 'team', 'campus'].includes(category)) return res.status(400).json({ error: 'Invalid category.' });
+    if (!value) return res.status(400).json({ error: 'Value is required.' });
+    await db.addOptions([{ category, value }]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.delete('/api/options', requireAdmin, async (req, res) => {
+  try {
+    const category = (req.query.category || '').trim();
+    const value = (req.query.value || '').trim();
+    if (!category || !value) return res.status(400).json({ error: 'category and value are required.' });
+    await db.removeOption(category, value);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ---- ADMIN: employee roster ----
 app.get('/api/employees', requireAdmin, async (req, res) => {
   try { res.json(await db.listEmployees()); }
@@ -179,6 +232,7 @@ app.post('/api/employees', requireAdmin, async (req, res) => {
       return res.status(409).json({ error: `Associate ID "${empId}" already exists — not added.` });
     }
     await db.upsertEmployee(empId, name, businessUnit, team, campus);
+    await registerOptions([{ businessUnit, team, campus }]);
     const count = (await db.listEmployees()).length;
     res.json({ ok: true, count });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -203,6 +257,7 @@ app.post('/api/employees/bulk', requireAdmin, async (req, res) => {
       added++;
     }
     await db.upsertEmployees(rows);
+    await registerOptions(rows);
     const count = (await db.listEmployees()).length;
     res.json({ ok: true, added, duplicates, skipped, count });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -213,9 +268,23 @@ app.patch('/api/employees/:empId', requireAdmin, async (req, res) => {
     if (!(await db.findEmployee(empId))) return res.status(404).json({ error: 'Employee not found.' });
     const name = (req.body.name || '').trim();
     if (!name) return res.status(400).json({ error: 'Name is required.' });
-    await db.updateEmployee(empId, { name, businessUnit: (req.body.businessUnit || '').trim(), team: (req.body.team || '').trim(), campus: (req.body.campus || '').trim() });
+    const businessUnit = (req.body.businessUnit || '').trim(), team = (req.body.team || '').trim(), campus = (req.body.campus || '').trim();
+    await db.updateEmployee(empId, { name, businessUnit, team, campus });
+    await registerOptions([{ businessUnit, team, campus }]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/employees/exited', requireAdmin, async (req, res) => {
+  try { res.json(await db.listExited()); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/employees/:empId/exit', requireAdmin, async (req, res) => {
+  try { await db.setExited(req.params.empId, true); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/employees/:empId/restore', requireAdmin, async (req, res) => {
+  try { await db.setExited(req.params.empId, false); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.delete('/api/employees', requireAdmin, async (req, res) => {
   try { await db.clearEmployees(); res.json({ ok: true }); }
@@ -235,10 +304,12 @@ app.get('/api/day/:date', requireAdmin, async (req, res) => {
       if (!byEmp[r.empId]) byEmp[r.empId] = { name: r.name, start: null, end: null };
       if (r.type === 'start') byEmp[r.empId].start = r; else byEmp[r.empId].end = r;
     }
+    const overrides = await db.statusByDate(date);
     const buildRow = (empId, name, businessUnit, team, campus, rec, inRoster) => {
       const start = rec ? rec.start : null, end = rec ? rec.end : null;
-      const status = (start && end) ? 'complete' : (start || end) ? 'partial' : 'absent';
-      return { empId, name, businessUnit: businessUnit || '', team: team || '', campus: campus || '', inRoster, start, end, worked: workedLabel(start, end), status };
+      const computed = (start && end) ? 'present' : (start || end) ? 'partial' : 'absent';
+      const status = overrides[empId] || computed;           // manual override wins
+      return { empId, name, businessUnit: businessUnit || '', team: team || '', campus: campus || '', inRoster, start, end, worked: workedLabel(start, end), status, overridden: !!overrides[empId] };
     };
     const rows = [];
     const seen = new Set();
@@ -249,13 +320,29 @@ app.get('/api/day/:date', requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ---- ADMIN: set a manual status override for one employee on one date ----
+app.post('/api/status', requireAdmin, async (req, res) => {
+  try {
+    const empId = (req.body.empId || '').trim();
+    const date = (req.body.date || '').trim();
+    const status = (req.body.status || '').trim().toLowerCase();
+    if (!empId || !date) return res.status(400).json({ error: 'empId and date are required.' });
+    if (!['present', 'absent', 'permission', 'normal_leave'].includes(status)) {
+      return res.status(400).json({ error: 'status must be present, absent, permission, or normal_leave.' });
+    }
+    await db.setStatus(empId, date, status);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ---- ADMIN: stored photo (proxied from Storage; bucket is private) ----
 app.get('/api/photo/:file', requireAdmin, async (req, res) => {
   try {
     const file = path.basename(req.params.file);
     const buf = await db.downloadPhoto(file);
     if (!buf) return res.status(404).end();
-    res.type('jpg').send(buf);
+    res.setHeader('Cache-Control', 'private, max-age=3600'); // browser caches thumbnails for 1h
+    res.type('jpg').send(buf);                                // send() adds an ETag for revalidation
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

@@ -29,9 +29,12 @@
   .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;}
   .pill.start{background:rgba(34,197,94,.15);color:#86efac;}
   .pill.end{background:rgba(245,158,11,.15);color:#fcd34d;}
-  .pill.complete{background:rgba(34,197,94,.15);color:#86efac;}
+  .pill.complete,.pill.present{background:rgba(34,197,94,.15);color:#86efac;}
   .pill.partial{background:rgba(245,158,11,.15);color:#fcd34d;}
   .pill.absent{background:rgba(239,68,68,.15);color:#fca5a5;}
+  .pill.permission{background:rgba(59,130,246,.16);color:#93c5fd;}
+  .pill.normal_leave{background:rgba(168,85,247,.16);color:#d8b4fe;}
+  .statusSel{padding:5px 8px;font-size:12px;border-radius:6px;max-width:150px;}
   .tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:5px;font-size:10px;background:rgba(148,163,184,.18);color:#cbd5e1;}
   .missing{color:#64748b;}
   .maplink{text-decoration:none;font-size:13px;margin-left:2px;}
@@ -50,6 +53,15 @@
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
   .row label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;}
   .msg{font-size:13px;color:var(--muted);margin-top:8px;min-height:18px;}
+  .optgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  .optcol h3{font-size:13px;margin:0 0 8px;}
+  .optitems{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;min-height:22px;}
+  .optchip{display:inline-flex;align-items:center;gap:6px;background:var(--field);border:1px solid var(--border);border-radius:20px;padding:3px 6px 3px 11px;font-size:12px;}
+  .optchip button{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:0 2px;}
+  .optchip button:hover{color:var(--bad);}
+  .optadd{display:flex;gap:6px;}
+  .optadd input{max-width:160px;}
+  @media(max-width:760px){.optgrid{grid-template-columns:1fr;}}
   .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
   .lightbox img{max-width:100%;max-height:100%;border-radius:10px;}
   .summary{font-size:13px;color:var(--muted);margin-bottom:12px;}
@@ -65,6 +77,8 @@
   .stat.present .n{color:#22c55e;}
   .stat.partial .n{color:#f59e0b;}
   .stat.absent .n{color:#ef4444;}
+  .stat.permission .n{color:#3b82f6;}
+  .stat.normal_leave .n{color:#a855f7;}
   .pager{display:flex;align-items:center;gap:12px;margin-top:14px;font-size:13px;color:var(--muted);}
   .pager button[disabled]{opacity:.4;cursor:not-allowed;}
   .alpha{display:flex;flex-wrap:wrap;gap:4px;margin-top:12px;}
@@ -129,9 +143,9 @@
       <div class="row">
         <div><label>Associate ID</label><input id="empIdIn" placeholder="135454"></div>
         <div><label>Name</label><input id="empNameIn" placeholder="Priya Kumar"></div>
-        <div><label>Business Unit</label><input id="empBUIn" placeholder="Engineering"></div>
-        <div><label>Team</label><input id="empTeamIn" placeholder="Platform"></div>
-        <div><label>Campus</label><input id="empCampusIn" placeholder="Chennai"></div>
+        <div><label>Business Unit</label><input id="empBUIn" list="buList" placeholder="Select or type…" autocomplete="off"></div>
+        <div><label>Team</label><input id="empTeamIn" list="teamList" placeholder="Select or type…" autocomplete="off"></div>
+        <div><label>Campus</label><input id="empCampusIn" list="campusList" placeholder="Select or type…" autocomplete="off"></div>
         <button class="btn" id="addEmpBtn">Add</button>
       </div>
       <div class="msg" id="addMsg"></div>
@@ -144,14 +158,26 @@
       <div class="msg" id="bulkMsg"></div>
     </div>
     <div class="card">
+      <h2>Manage dropdown lists</h2>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Add or remove the options shown in the Business Unit, Team and Campus dropdowns. Removing one won't change employees who already have that value.</p>
+      <div class="optgrid" id="optManager"></div>
+    </div>
+    <div class="card">
       <h2 style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
         <span>Employees (<span id="empCount">0</span>)</span>
         <span style="display:flex;gap:8px;">
           <input id="empSearch" placeholder="Filter by any field…" style="max-width:220px;">
-          <button class="ghost" id="clearRosterBtn">Clear all</button>
         </span>
       </h2>
       <div id="empTable"><div class="empty">Loading…</div></div>
+    </div>
+    <div class="card">
+      <h2 style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <span>Exit list (<span id="exitCount">0</span>)</span>
+        <input id="exitSearch" placeholder="Filter by any field…" style="max-width:220px;">
+      </h2>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Exited employees are removed from attendance but their history is kept. Restore to make them active again.</p>
+      <div id="exitTable"><div class="empty">No exited employees.</div></div>
     </div>
   </section>
 </main>
@@ -221,12 +247,14 @@ function renderCal(){
   $('cal').querySelectorAll('.cal-day[data-date]').forEach(c=>c.onclick=()=>{ selectedDate=c.dataset.date; renderCal(); loadDay(); });
 }
 $('refreshBtn').onclick=loadDay;
-$('search').oninput=()=>{ page=1; renderDay(); };
+let _searchTimer=null;
+$('search').oninput=()=>{ clearTimeout(_searchTimer); _searchTimer=setTimeout(()=>{ page=1; renderDay(); }, 180); };
 ['fBU','fTeam','fCampus'].forEach(id=>$(id).onchange=()=>{ page=1; renderDay(); });
 
 const PAGE_SIZE=50;
-let statusFilter='all';   // all | complete | partial | absent
+let statusFilter='all';   // all | present | partial | absent | permission
 let letterFilter='';      // '' = all, else 'A'..'Z'
+let editingStatusEmp=null;
 let page=1;
 
 async function loadDay(){
@@ -274,15 +302,19 @@ function baseFiltered(){
 function renderStats(){
   const base=baseFiltered();
   const total=base.length;
-  const present=base.filter(r=>r.status==='complete').length;
+  const present=base.filter(r=>r.status==='present').length;
   const partial=base.filter(r=>r.status==='partial').length;
   const absent=base.filter(r=>r.status==='absent').length;
+  const permission=base.filter(r=>r.status==='permission').length;
+  const normalLeave=base.filter(r=>r.status==='normal_leave').length;
   const card=(f,cls,label,n)=>`<div class="stat ${cls} ${statusFilter===f?'active':''}" data-filter="${f}"><div class="n">${n}</div><div class="l">${label}</div></div>`;
   $('stats').innerHTML=
     card('all','total','Total employees',total)+
-    card('complete','present','Present',present)+
-    card('partial','partial','Partial',partial)+
-    card('absent','absent','Absent',absent);
+    card('present','present','Present',present)+
+    card('absent','absent','Absent',absent)+
+    card('permission','permission','Permission',permission)+
+    card('normal_leave','normal_leave','Normal Leave',normalLeave)+
+    card('partial','partial','Partial',partial);
   $('stats').querySelectorAll('.stat').forEach(s=>s.onclick=()=>{
     statusFilter = statusFilter===s.dataset.filter ? 'all' : s.dataset.filter; // click again to clear
     page=1; renderDay();
@@ -299,10 +331,9 @@ $('exportBtn').onclick=()=>{
   const rows=filteredRows();
   if(!rows.length){ alert('Nothing to export for the current filters.'); return; }
   const loc=r=>(r&&r.lat!=null&&r.lng!=null)?`${r.lat},${r.lng}`:'';
-  const stat=s=>s==='complete'?'present':s;
   const data=[['Name','Associate ID','Business Unit','Team','Campus','Date','Status','Start Time','End Time','Worked','Start Location','End Location']];
   for(const r of rows){
-    data.push([r.name,r.empId,r.businessUnit||'',r.team||'',r.campus||'',selectedDate,stat(r.status),r.start?r.start.time:'',r.end?r.end.time:'',r.worked||'',loc(r.start),loc(r.end)]);
+    data.push([r.name,r.empId,r.businessUnit||'',r.team||'',r.campus||'',selectedDate,statusLabel(r.status),r.start?r.start.time:'',r.end?r.end.time:'',r.worked||'',loc(r.start),loc(r.end)]);
   }
   const csv=data.map(row=>row.map(c=>`"${String(c==null?'':c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');
@@ -320,8 +351,7 @@ function renderDay(){
   const available=new Set(rows.map(r=>(r.name||'').charAt(0).toUpperCase()).filter(c=>c>='A'&&c<='Z'));
   if(letterFilter) rows=rows.filter(r=>(r.name||'').toUpperCase().startsWith(letterFilter));
 
-  const fLabel={all:'all',complete:'present',partial:'partial',absent:'absent'}[statusFilter];
-  $('summary').textContent=`Attendance for ${selectedDate}`+(statusFilter==='all'?'':` · showing ${fLabel}`)+(letterFilter?` · names in ${letterFilter}`:'');
+  $('summary').textContent=`Attendance for ${selectedDate}`+(statusFilter==='all'?'':` · showing ${statusLabel(statusFilter)}`)+(letterFilter?` · names in ${letterFilter}`:'');
 
   const el=$('dayTable');
   if(!rows.length){
@@ -337,9 +367,7 @@ function renderDay(){
 
   let html='<table><thead><tr><th>Name</th><th>Associate ID</th><th>Business Unit</th><th>Team</th><th>Campus</th><th>Status</th><th>Start</th><th>End</th><th>Worked</th><th>Start photo</th><th>End photo</th></tr></thead><tbody>';
   for(const r of pageRows){
-    const st=r.status==='complete'?'<span class="pill complete">present</span>':
-             r.status==='partial'?'<span class="pill partial">partial</span>':
-             '<span class="pill absent">absent</span>';
+    const st=statusCell(r);
     const tag=r.inRoster?'':'<span class="tag">walk-in</span>';
     const start=entryCell(r.start,'start');
     const end=entryCell(r.end,'end');
@@ -359,11 +387,32 @@ function renderDay(){
   el.innerHTML=html;
   wireAlpha(el);
   el.querySelectorAll('img.thumb').forEach(im=>im.onclick=()=>{ $('lightimg').src=im.dataset.full; $('lightbox').style.display='flex'; });
+  el.querySelectorAll('button[data-editstatus]').forEach(b=>b.onclick=()=>{ editingStatusEmp=b.dataset.editstatus; renderDay(); });
+  el.querySelectorAll('button[data-cancelstatus]').forEach(b=>b.onclick=()=>{ editingStatusEmp=null; renderDay(); });
+  el.querySelectorAll('select.statusSel').forEach(s=>s.onchange=()=>saveStatus(s.dataset.emp, s.value));
   el.querySelectorAll('button[data-pg]').forEach(b=>b.onclick=()=>{
     if(b.dataset.pg==='prev'&&page>1) page--;
     else if(b.dataset.pg==='next'&&page<pages) page++;
     renderDay();
   });
+}
+const STATUS_LABELS={present:'Present',absent:'Absent',permission:'Permission',normal_leave:'Normal Leave',partial:'Partial'};
+function statusLabel(s){ return STATUS_LABELS[s]||s; }
+function statusCell(r){
+  if(r.empId===editingStatusEmp){
+    const opts=['present','absent','permission','normal_leave'].map(s=>`<option value="${s}" ${r.status===s?'selected':''}>${STATUS_LABELS[s]}</option>`).join('');
+    return `<select class="statusSel" data-emp="${esc(r.empId)}">${opts}</select> <button class="mini" data-cancelstatus="1" title="Cancel">✕</button>`;
+  }
+  const dot=r.overridden?' •':'';
+  return `<span class="pill ${r.status}">${statusLabel(r.status)}${dot}</span> <button class="mini" data-editstatus="${esc(r.empId)}" title="Edit status">✎</button>`;
+}
+async function saveStatus(emp,status){
+  try{
+    const res=await api('/api/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({empId:emp,date:selectedDate,status})});
+    if(!res.ok){ const d=await res.json().catch(()=>({})); alert(d.error||'Update failed.'); return; }
+    const row=DAY.find(r=>r.empId===emp); if(row){ row.status=status; row.overridden=true; }
+    editingStatusEmp=null; renderDay();
+  }catch(e){}
 }
 function entryCell(entry, cls){
   if(!entry) return '<span class="missing">—</span>';
@@ -376,7 +425,7 @@ function entryCell(entry, cls){
 function thumb(r){
   if(!r||!r.photo) return '<span class="thumb ph">—</span>';
   const u='/api/photo/'+encodeURIComponent(r.photo);
-  return `<img class="thumb" src="${u}" data-full="${u}" alt="photo">`;
+  return `<img class="thumb" src="${u}" data-full="${u}" alt="photo" loading="lazy" decoding="async">`;
 }
 $('lightbox').onclick=()=>{ $('lightbox').style.display='none'; };
 $('clearBtn').onclick=async()=>{
@@ -385,6 +434,51 @@ $('clearBtn').onclick=async()=>{
 };
 
 // ---- employees ----
+// Dropdown option lists are managed in the DB (add/remove). These datalists are
+// SUGGESTIONS only; the inputs still accept custom text.
+let OPTIONS={business_unit:[],team:[],campus:[]};
+function dataOptions(values){ return values.map(v=>`<option value="${esc(v)}"></option>`).join(''); }
+function setList(id, values){
+  let dl=document.getElementById(id);
+  if(!dl){ dl=document.createElement('datalist'); dl.id=id; document.body.appendChild(dl); }
+  dl.innerHTML=dataOptions(values);
+}
+function applyOptionLists(){
+  setList('buList', OPTIONS.business_unit||[]);
+  setList('teamList', OPTIONS.team||[]);
+  setList('campusList', OPTIONS.campus||[]);
+}
+async function loadOptions(){
+  try{ OPTIONS=await (await api('/api/options')).json(); }catch(e){ return; }
+  applyOptionLists();
+  renderOptionManager();
+}
+function renderOptionManager(){
+  const el=$('optManager'); if(!el) return;
+  const col=(cat,title)=>{
+    const items=OPTIONS[cat]||[];
+    const chips=items.length
+      ? items.map(v=>`<span class="optchip">${esc(v)}<button data-optdel data-cat="${cat}" data-val="${esc(v)}" title="Remove">×</button></span>`).join('')
+      : '<span class="missing">none</span>';
+    return `<div class="optcol"><h3>${title}</h3><div class="optitems">${chips}</div>`+
+      `<div class="optadd"><input data-optin="${cat}" placeholder="Add…" autocomplete="off"><button class="ghost" data-optadd="${cat}">Add</button></div></div>`;
+  };
+  el.innerHTML=col('business_unit','Business Unit')+col('team','Team')+col('campus','Campus');
+  el.querySelectorAll('button[data-optdel]').forEach(b=>b.onclick=()=>removeOptionUI(b.dataset.cat,b.dataset.val));
+  el.querySelectorAll('button[data-optadd]').forEach(b=>b.onclick=()=>{
+    const cat=b.dataset.optadd, inp=el.querySelector(`input[data-optin="${cat}"]`);
+    addOptionUI(cat,(inp.value||'').trim());
+  });
+}
+async function addOptionUI(cat,value){
+  if(!value) return;
+  try{ await api('/api/options',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:cat,value})}); loadOptions(); }catch(e){}
+}
+async function removeOptionUI(cat,value){
+  if(!confirm(`Remove "${value}" from ${cat.replace('_',' ')} options?`)) return;
+  try{ await api('/api/options?category='+encodeURIComponent(cat)+'&value='+encodeURIComponent(value),{method:'DELETE'}); loadOptions(); }catch(e){}
+}
+
 // Show a message, then auto-clear it after 10 seconds.
 const _msgTimers={};
 function flashMsg(id, text){
@@ -421,14 +515,13 @@ $('bulkBtn').onclick=async()=>{
 // ---- roster list (view / edit / delete) ----
 let EMP_LIST=[], editingEmpId=null, empPage=1;
 const EMP_PAGE_SIZE=50;
-$('empSearch').oninput=()=>{ empPage=1; renderEmployees(); };
-$('clearRosterBtn').onclick=async()=>{
-  if(!confirm('Remove ALL employees from the roster? Attendance records are kept.')) return;
-  try{ await api('/api/employees',{method:'DELETE'}); loadEmployees(); }catch(e){}
-};
+let _empSearchTimer=null;
+$('empSearch').oninput=()=>{ clearTimeout(_empSearchTimer); _empSearchTimer=setTimeout(()=>{ empPage=1; renderEmployees(); }, 180); };
 async function loadEmployees(){
   try{ EMP_LIST=await (await api('/api/employees')).json(); }catch(e){ return; }
   $('empCount').textContent=EMP_LIST.length;
+  loadOptions();         // refresh dropdown option lists (picks up any newly-added values)
+  loadExited();          // refresh the exit list
   renderEmployees();
 }
 function renderEmployees(){
@@ -448,16 +541,16 @@ function renderEmployees(){
     if(e.empId===editingEmpId){
       html+=`<tr><td>${esc(e.empId)}</td>`+
         `<td><input id="edName" value="${esc(e.name)}"></td>`+
-        `<td><input id="edBU" value="${esc(e.businessUnit||'')}"></td>`+
-        `<td><input id="edTeam" value="${esc(e.team||'')}"></td>`+
-        `<td><input id="edCamp" value="${esc(e.campus||'')}"></td>`+
+        `<td><input id="edBU" list="buList" value="${esc(e.businessUnit||'')}" autocomplete="off"></td>`+
+        `<td><input id="edTeam" list="teamList" value="${esc(e.team||'')}" autocomplete="off"></td>`+
+        `<td><input id="edCamp" list="campusList" value="${esc(e.campus||'')}" autocomplete="off"></td>`+
         `<td style="text-align:right;white-space:nowrap;"><button class="mini" data-save="${esc(e.empId)}">Save</button> <button class="mini" data-cancel="1">Cancel</button></td></tr>`;
     }else{
       html+=`<tr><td>${esc(e.empId)}</td><td>${esc(e.name)}</td>`+
         `<td>${e.businessUnit?esc(e.businessUnit):'<span class="missing">—</span>'}</td>`+
         `<td>${e.team?esc(e.team):'<span class="missing">—</span>'}</td>`+
         `<td>${e.campus?esc(e.campus):'<span class="missing">—</span>'}</td>`+
-        `<td style="text-align:right;white-space:nowrap;"><button class="mini" data-edit="${esc(e.empId)}">Edit</button> <button class="mini danger" data-del="${esc(e.empId)}">Delete</button></td></tr>`;
+        `<td style="text-align:right;white-space:nowrap;"><button class="mini" data-edit="${esc(e.empId)}">Edit</button> <button class="mini" data-exit="${esc(e.empId)}">Exit</button> <button class="mini danger" data-del="${esc(e.empId)}">Delete</button></td></tr>`;
     }
   }
   html+='</tbody></table>';
@@ -470,6 +563,7 @@ function renderEmployees(){
   el.querySelectorAll('button[data-edit]').forEach(b=>b.onclick=()=>{ editingEmpId=b.dataset.edit; renderEmployees(); });
   el.querySelectorAll('button[data-cancel]').forEach(b=>b.onclick=()=>{ editingEmpId=null; renderEmployees(); });
   el.querySelectorAll('button[data-save]').forEach(b=>b.onclick=()=>saveEmp(b.dataset.save));
+  el.querySelectorAll('button[data-exit]').forEach(b=>b.onclick=()=>exitEmp(b.dataset.exit));
   el.querySelectorAll('button[data-del]').forEach(b=>b.onclick=()=>delEmp(b.dataset.del));
   el.querySelectorAll('button[data-emppg]').forEach(b=>b.onclick=()=>{
     if(b.dataset.emppg==='prev'&&empPage>1) empPage--;
@@ -487,8 +581,59 @@ async function saveEmp(empId){
   }catch(e){}
 }
 async function delEmp(empId){
-  if(!confirm('Remove '+empId+' from the roster? Past attendance records are kept.')) return;
-  try{ await api('/api/employees/'+encodeURIComponent(empId),{method:'DELETE'}); loadEmployees(); }catch(e){}
+  if(!confirm('Permanently delete '+empId+' from the roster? Past attendance records are kept.')) return;
+  try{ await api('/api/employees/'+encodeURIComponent(empId),{method:'DELETE'}); loadEmployees(); loadExited(); }catch(e){}
+}
+async function exitEmp(empId){
+  if(!confirm('Move '+empId+' to the exit list? They will no longer appear in attendance. History is kept.')) return;
+  try{ await api('/api/employees/'+encodeURIComponent(empId)+'/exit',{method:'POST'}); loadEmployees(); loadExited(); }catch(e){}
+}
+async function restoreEmp(empId){
+  if(!confirm('Restore '+empId+' to the active roster?')) return;
+  try{ await api('/api/employees/'+encodeURIComponent(empId)+'/restore',{method:'POST'}); loadEmployees(); loadExited(); }catch(e){}
+}
+let EXITED_LIST=[], exitPage=1;
+const EXIT_PAGE_SIZE=20;
+let _exitSearchTimer=null;
+$('exitSearch').oninput=()=>{ clearTimeout(_exitSearchTimer); _exitSearchTimer=setTimeout(()=>{ exitPage=1; renderExited(); }, 180); };
+async function loadExited(){
+  try{ EXITED_LIST=await (await api('/api/employees/exited')).json(); }catch(e){ return; }
+  $('exitCount').textContent=EXITED_LIST.length;
+  renderExited();
+}
+function renderExited(){
+  const q=($('exitSearch').value||'').trim().toLowerCase();
+  let list=EXITED_LIST;
+  if(q) list=list.filter(e=>[e.empId,e.name,e.businessUnit,e.team,e.campus].some(v=>(v||'').toLowerCase().includes(q)));
+  const el=$('exitTable');
+  if(!EXITED_LIST.length){ el.innerHTML='<div class="empty">No exited employees.</div>'; return; }
+  if(!list.length){ el.innerHTML='<div class="empty">No exited employees match the filter.</div>'; return; }
+  const pages=Math.max(1,Math.ceil(list.length/EXIT_PAGE_SIZE));
+  if(exitPage>pages) exitPage=pages; if(exitPage<1) exitPage=1;
+  const startI=(exitPage-1)*EXIT_PAGE_SIZE;
+  const pageList=list.slice(startI,startI+EXIT_PAGE_SIZE);
+  let html='<table><thead><tr><th>Associate ID</th><th>Name</th><th>Business Unit</th><th>Team</th><th>Campus</th><th></th></tr></thead><tbody>';
+  for(const e of pageList){
+    html+=`<tr><td>${esc(e.empId)}</td><td>${esc(e.name)}</td>`+
+      `<td>${e.businessUnit?esc(e.businessUnit):'<span class="missing">—</span>'}</td>`+
+      `<td>${e.team?esc(e.team):'<span class="missing">—</span>'}</td>`+
+      `<td>${e.campus?esc(e.campus):'<span class="missing">—</span>'}</td>`+
+      `<td style="text-align:right;white-space:nowrap;"><button class="mini" data-restore="${esc(e.empId)}">Restore</button> <button class="mini danger" data-delx="${esc(e.empId)}">Delete</button></td></tr>`;
+  }
+  html+='</tbody></table>';
+  html+=`<div class="pager">`+
+    `<button class="ghost" data-exitpg="prev" ${exitPage<=1?'disabled':''}>‹ Prev</button>`+
+    `<span>${startI+1}–${startI+pageList.length} of ${list.length}${pages>1?` · page ${exitPage}/${pages}`:''}</span>`+
+    `<button class="ghost" data-exitpg="next" ${exitPage>=pages?'disabled':''}>Next ›</button>`+
+    `</div>`;
+  el.innerHTML=html;
+  el.querySelectorAll('button[data-restore]').forEach(b=>b.onclick=()=>restoreEmp(b.dataset.restore));
+  el.querySelectorAll('button[data-delx]').forEach(b=>b.onclick=()=>delEmp(b.dataset.delx));
+  el.querySelectorAll('button[data-exitpg]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.exitpg==='prev'&&exitPage>1) exitPage--;
+    else if(b.dataset.exitpg==='next'&&exitPage<pages) exitPage++;
+    renderExited();
+  });
 }
 
 // ---- logout ----

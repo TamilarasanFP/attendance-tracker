@@ -10,9 +10,13 @@ create table if not exists public.employees (
   business_unit text,
   team          text,
   campus        text,
+  exited        boolean not null default false,
+  exited_at     timestamptz,
   created_at    timestamptz not null default now()
 );
 -- Migrations for an existing table (safe to re-run):
+alter table public.employees add column if not exists exited    boolean not null default false;
+alter table public.employees add column if not exists exited_at timestamptz;
 -- rename old 'vertical' -> 'business_unit' only if that's still the situation
 do $$
 begin
@@ -48,11 +52,30 @@ create index if not exists records_emp_idx  on public.records(emp_id);
 alter table public.records add column if not exists lat double precision;
 alter table public.records add column if not exists lng double precision;
 
+-- 2b) Manual per-day status overrides (Present / Absent / Permission)
+create table if not exists public.day_status (
+  emp_id     text not null,
+  date       text not null,             -- YYYY-MM-DD
+  status     text not null check (status in ('present','absent','permission','normal_leave')),
+  updated_at timestamptz not null default now(),
+  primary key (emp_id, date)
+);
+
+-- 2c) Admin-managed dropdown option lists (Business Unit / Team / Campus)
+create table if not exists public.options (
+  category text not null check (category in ('business_unit','team','campus')),
+  value    text not null,
+  primary key (category, value)
+);
+-- (The app seeds default options automatically on first load.)
+
 -- 3) Lock the tables down. The server uses the service_role key, which bypasses
 --    RLS. Enabling RLS with NO policies means the anon/public key can read
 --    nothing — so even if someone got your anon key, the data stays private.
-alter table public.employees enable row level security;
-alter table public.records   enable row level security;
+alter table public.employees  enable row level security;
+alter table public.records    enable row level security;
+alter table public.day_status enable row level security;
+alter table public.options    enable row level security;
 
 -- ============================================================
 -- 4) Storage bucket for photos
