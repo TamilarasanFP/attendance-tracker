@@ -55,7 +55,11 @@
     </select>
 
     <label>Camera</label>
-    <div class="camwrap">
+    <select id="camFacing">
+      <option value="user">Front camera (selfie)</option>
+      <option value="environment">Back camera</option>
+    </select>
+    <div class="camwrap" style="margin-top:8px;">
       <div class="placeholder" id="camPlaceholder">Camera is off. Tap “Open camera” to start.</div>
       <video id="video" autoplay playsinline muted></video>
       <canvas id="shot" class="shot"></canvas>
@@ -77,6 +81,13 @@ const $ = id => document.getElementById(id);
 let stream=null, capturedBlob=null, capturedAt=null;
 const video=$('video'), shot=$('shot');
 function p(n){ return String(n).padStart(2,'0'); }
+// stamp the photo in India time (Asia/Kolkata), matching what the server records
+function istStamp(d){
+  const x=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hourCycle:'h23',
+    year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'})
+    .formatToParts(d).reduce((o,pp)=>(o[pp.type]=pp.value,o),{});
+  return `${x.year}-${x.month}-${x.day} ${x.hour}:${x.minute}:${x.second} IST`;
+}
 function setStatus(cls,msg){ const s=$('userStatus'); if(!msg){s.className='status';s.innerHTML='';return;} s.className='status show '+cls; s.innerHTML=msg; }
 
 // auto-fill name from roster when the Employee ID matches
@@ -100,10 +111,12 @@ function unlockName(){
   $('name').readOnly=false; rosterFilled=false; $('nameHint').textContent='';
 }
 
-$('openBtn').onclick=async()=>{
+async function startCamera(){
   setStatus('','');
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  const facing=$('camFacing').value;
   try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing}},audio:false});
     video.srcObject=stream;
     $('camPlaceholder').style.display='none';
     shot.style.display='none'; video.style.display='block';
@@ -112,7 +125,10 @@ $('openBtn').onclick=async()=>{
   }catch(e){
     setStatus('err','Could not open camera: '+e.message+'. Check permissions and that you are on localhost/HTTPS.');
   }
-};
+}
+$('openBtn').onclick=startCamera;
+// switching front/back while the camera is live re-opens with the chosen lens
+$('camFacing').onchange=()=>{ if(stream) startCamera(); };
 
 $('captureBtn').onclick=()=>{
   if(!stream) return;
@@ -121,7 +137,7 @@ $('captureBtn').onclick=()=>{
   const ctx=shot.getContext('2d');
   ctx.drawImage(video,0,0,w,h);
   const now=new Date();
-  const stamp=now.getFullYear()+'-'+p(now.getMonth()+1)+'-'+p(now.getDate())+' '+p(now.getHours())+':'+p(now.getMinutes())+':'+p(now.getSeconds());
+  const stamp=istStamp(now);
   const fsz=Math.max(16, Math.round(w*0.035));
   ctx.font=`bold ${fsz}px monospace`;
   const tw=ctx.measureText(stamp).width;

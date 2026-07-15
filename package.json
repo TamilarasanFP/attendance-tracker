@@ -6,9 +6,12 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
+    "checkdb": "node checkdb.js",
     "test": "node selftest.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "multer": "^1.4.5-lts.1"
   }

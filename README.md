@@ -7,14 +7,34 @@ Employee attendance app with two sides:
   - **Attendance** — pick a date and see every registered employee mapped to their attendance for that day: Start, End, Worked, a **Present / Partial / Absent** status, and the stored photos. Absentees (registered but no check-in) are flagged; check-ins from IDs not in the roster show as **walk-in**.
   - **Employees** — the master roster. Add employees one at a time or **bulk-import** `Name, EmployeeID` lines. Remove employees (their past records are kept).
 
+Data is stored in **Supabase** (Postgres for records + roster, Storage for photos).
+
+## Setup (one time)
+
+1. **Create the tables + bucket.** In your Supabase project open **SQL Editor → New query**, paste the contents of [`supabase_setup.sql`](./supabase_setup.sql), and Run. (It also creates the private `attendance-photos` storage bucket.)
+2. **Get your keys.** Supabase → **Project Settings → API**. You need the **Project URL** and the **`service_role`** key (under "Project API keys").
+3. **Configure `.env`.** Copy the template and fill it in:
+   ```bash
+   cp .env.example .env
+   ```
+   Then edit `.env`:
+   ```
+   SUPABASE_URL=https://YOUR-ref.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+   SUPABASE_BUCKET=attendance-photos
+   ADMIN_PASSWORD=yourSecret
+   ```
+   > 🔐 The `service_role` key is full admin access to your database. Keep it in `.env` only — never commit it, never share it. `.env` is git-ignored.
+
 ## Run
 
 ```bash
 npm install
-ADMIN_PASSWORD=yourSecret npm start
+npm run checkdb   # verifies the Supabase connection, tables, and bucket
+npm start
 ```
 
-(Without `ADMIN_PASSWORD` it falls back to the default `admin123` and prints a warning — fine for testing, change it for real use.)
+`checkdb` should print three ✓ lines. If it errors, re-check step 1 (SQL was run) and your keys.
 
 ### URLs
 
@@ -37,15 +57,16 @@ ADMIN_PASSWORD=yourSecret npm start
 1. Employee opens the camera in the browser and taps **Capture photo**.
 2. The app draws the current timestamp onto the captured frame and sends it to the server along with the capture time.
 3. The server **validates the capture time against its own clock** (rejects if the device clock is off by more than 5 minutes) so attendance can't be back/post-dated.
-4. The image is saved under `data/photos/`, and the record (name, id, type, date, time) is saved to `data/records.json`.
+4. The image is uploaded to the **Supabase Storage** bucket, and the record (name, id, type, date, time, timestamps, photo filename) is inserted into the **`records`** table.
 
 The timestamp comes from the moment of capture — not from reading text off the image — so it's reliable and needs no OCR.
 
 ## Data & storage
 
-- Records: `data/records.json`
-- Photos: `data/photos/<id>.jpg`
-- **Clear all records** also deletes the associated photos.
+- **`records`** table — attendance records (photo filename referenced, not the bytes).
+- **`employees`** table — the roster (`emp_id`, `name`).
+- **`attendance-photos`** Storage bucket (private) — the captured images. The admin dashboard streams them through the server; the bucket itself is never public.
+- **Clear all records** deletes the rows and removes the associated photos from the bucket.
 
 > ⚠️ You are storing employee photos. That's personal data — put a retention policy and access control in place before using this beyond a prototype.
 
@@ -67,20 +88,15 @@ The timestamp comes from the moment of capture — not from reading text off the
 | GET | `/api/export` | admin | CSV download |
 | DELETE | `/api/records` | admin | clear all records + photos |
 
-## Data files
-
-- `data/records.json` — attendance records
-- `data/employees.json` — the roster (`{ empId, name }`)
-- `data/photos/` — stored capture images
-
 ## Tests
 
 ```bash
-npm test   # in-process smoke test: validation, storage, skew rejection, photo retrieval, traversal guard
+npm run checkdb   # live check: Supabase connection, table read/write, bucket upload/download
+npm test          # offline check: auth, route gating, validation, time helpers (no DB needed)
 ```
 
 ## Production gaps (not yet done)
 
 - **Sessions are in-memory** — restarting the server logs the admin out. Fine for one instance; use a session store for multi-instance.
-- **JSON file store** — fine for one server; move to SQLite/Postgres for real load.
 - **HTTPS** — required for camera access off localhost, and for the login cookie to be truly safe in transit. Add `Secure` to the cookie once you're on HTTPS.
+- **RLS policies** — the app relies on the service_role key server-side; tables have RLS enabled with no policies (deny-all to anon). Don't expose the anon key with permissive policies unless you intend to.
