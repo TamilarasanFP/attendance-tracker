@@ -126,6 +126,11 @@ async function insertRecord(rec) {
   const { error } = await client().from('records').upsert(recToRow(rec), { onConflict: 'id' });
   if (error) throw error;
 }
+async function insertRecords(recs) {
+  if (!recs.length) return;
+  const { error } = await client().from('records').upsert(recs.map(recToRow), { onConflict: 'id' });
+  if (error) throw error;
+}
 async function listRecords() {
   const { data, error } = await client().from('records').select('*');
   if (error) throw error;
@@ -212,7 +217,7 @@ async function ping() {
 module.exports = {
   isConfigured, BUCKET,
   listEmployees, listExited, setExited, findEmployee, upsertEmployee, upsertEmployees, updateEmployee, deleteEmployee, clearEmployees,
-  insertRecord, listRecords, recordsByDate, getRecord, updateRecord, deleteRecord, clearRecords, clearRecordsByDate,
+  insertRecord, insertRecords, listRecords, recordsByDate, getRecord, updateRecord, deleteRecord, clearRecords, clearRecordsByDate,
   statusByDate, setStatus,
   listOptions, addOptions, removeOption,
   uploadPhoto, downloadPhoto, ping

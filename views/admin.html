@@ -51,6 +51,7 @@
   input.search{max-width:220px;}
   .toolbar select{max-width:190px;}
   .ghost{padding:9px 14px;border:1px solid var(--border);background:transparent;color:var(--txt);border-radius:9px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-block;}
+  .ghost.active{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600;}
   .btn{padding:10px 16px;border:none;border-radius:9px;background:var(--acc);color:#ffffff;font-weight:600;cursor:pointer;font-size:14px;}
   .empty{text-align:center;color:var(--muted);padding:34px 10px;}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
@@ -70,18 +71,19 @@
   .summary{font-size:13px;color:var(--muted);margin-bottom:12px;}
   .calrow{display:flex;gap:16px;flex-wrap:wrap;align-items:stretch;margin-bottom:18px;}
   .cal{flex:0 0 264px;width:264px;background:var(--field);border:1px solid var(--border);border-radius:12px;padding:12px;}
-  .stats{flex:1;min-width:250px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1fr;gap:12px;}
-  .stat{background:var(--field);border:1px solid var(--border);border-radius:10px;padding:12px 16px;cursor:pointer;display:flex;flex-direction:column;justify-content:center;transition:border-color .12s;}
+  .stats{flex:1;min-width:250px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1fr;gap:8px;align-content:stretch;}
+  .stat{background:var(--field);border:1px solid var(--border);border-radius:10px;padding:6px 16px;cursor:pointer;display:flex;flex-direction:column;justify-content:center;transition:border-color .12s;}
   .stat:hover{border-color:var(--acc);}
   .stat.active{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset;}
-  .stat .n{font-size:26px;font-weight:700;line-height:1;}
-  .stat .l{font-size:11px;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.03em;}
+  .stat .n{font-size:21px;font-weight:700;line-height:1;}
+  .stat .l{font-size:10px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.03em;}
   .stat.total .n{color:var(--acc);}
   .stat.present .n{color:#22c55e;}
   .stat.partial .n{color:#f59e0b;}
   .stat.absent .n{color:#ef4444;}
   .stat.permission .n{color:#3b82f6;}
   .stat.normal_leave .n{color:#a855f7;}
+  .stat.shortfall .n{color:#14b8a6;}
   .pager{display:flex;align-items:center;gap:12px;margin-top:14px;font-size:13px;color:var(--muted);}
   .pager button[disabled]{opacity:.4;cursor:not-allowed;}
   .alpha{display:flex;flex-wrap:wrap;gap:4px;margin-top:12px;}
@@ -93,9 +95,10 @@
   .cal-head b{font-size:13px;}
   .cal-nav{border:1px solid var(--border);background:transparent;color:var(--txt);border-radius:6px;cursor:pointer;font-size:13px;line-height:1;padding:3px 9px;}
   .cal-nav:hover{border-color:var(--acc);color:var(--acc);}
-  .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;}
-  .cal-grid .dow{font-size:9px;color:var(--muted);text-align:center;padding:2px 0;text-transform:uppercase;letter-spacing:.02em;}
-  .cal-day{height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;font-size:12px;border:1px solid transparent;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:30px;gap:2px;align-content:start;}
+  .cal-grid .dow{height:auto;font-size:9px;color:var(--muted);text-align:center;padding:2px 0;text-transform:uppercase;letter-spacing:.02em;}
+  .cal-grid .dow:first-of-type,.cal-grid .dow{align-self:center;}
+  .cal-day{display:flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;font-size:12px;border:1px solid transparent;}
   .cal-day:hover{background:rgba(241,81,55,.18);}
   .cal-day.today{border-color:var(--acc);}
   .cal-day.sel{background:var(--acc);color:#fff;font-weight:700;}
@@ -131,6 +134,7 @@
         <select id="fTeam"><option value="">All teams</option></select>
         <select id="fCampus"><option value="">All campuses</option></select>
         <button class="ghost" id="refreshBtn">Refresh</button>
+        <label class="ghost" style="cursor:pointer;">Import Excel<input type="file" id="xlsxInput" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none;"></label>
         <button class="ghost" id="exportBtn">Export CSV</button>
         <button class="ghost" id="clearBtn">Clear this date</button>
       </div>
@@ -259,8 +263,16 @@ $('search').oninput=()=>{ clearTimeout(_searchTimer); _searchTimer=setTimeout(()
 const PAGE_SIZE=50;
 let statusFilter='all';   // all | present | partial | absent | permission
 let letterFilter='';      // '' = all, else 'A'..'Z'
+let shortfallOn=false;    // worked < 8.5h
 let editingStatusEmp=null;
 let page=1;
+const SHORTFALL_MIN=8.5*60;
+function workedMinutes(r){
+  if(!r||!r.start||!r.end) return null;
+  const a=new Date(r.start.capturedAt).getTime(), b=new Date(r.end.capturedAt).getTime();
+  if(isNaN(a)||isNaN(b)||b<=a) return null;
+  return (b-a)/60000;
+}
 
 async function loadDay(){
   try{ DAY=await (await api('/api/day/'+selectedDate)).json(); dayLoaded=true; }
@@ -312,6 +324,7 @@ function renderStats(){
   const absent=base.filter(r=>r.status==='absent').length;
   const permission=base.filter(r=>r.status==='permission').length;
   const normalLeave=base.filter(r=>r.status==='normal_leave').length;
+  const shortfall=base.filter(r=>{const m=workedMinutes(r);return m!=null && m<SHORTFALL_MIN;}).length;
   const card=(f,cls,label,n)=>`<div class="stat ${cls} ${statusFilter===f?'active':''}" data-filter="${f}"><div class="n">${n}</div><div class="l">${label}</div></div>`;
   $('stats').innerHTML=
     card('all','total','Total employees',total)+
@@ -319,9 +332,11 @@ function renderStats(){
     card('absent','absent','Absent',absent)+
     card('permission','permission','Permission',permission)+
     card('normal_leave','normal_leave','Normal Leave',normalLeave)+
-    card('partial','partial','Partial',partial);
+    card('partial','partial','Partial',partial)+
+    `<div class="stat shortfall ${shortfallOn?'active':''}" data-shortfall="1"><div class="n">${shortfall}</div><div class="l">Time Shortfall (&lt;8.5h)</div></div>`;
   $('stats').querySelectorAll('.stat').forEach(s=>s.onclick=()=>{
-    statusFilter = statusFilter===s.dataset.filter ? 'all' : s.dataset.filter; // click again to clear
+    if(s.dataset.shortfall){ shortfallOn=!shortfallOn; }
+    else { statusFilter = statusFilter===s.dataset.filter ? 'all' : s.dataset.filter; } // click again to clear
     page=1; renderDay();
   });
 }
@@ -329,6 +344,7 @@ function renderStats(){
 function filteredRows(){
   let rows=baseFiltered();
   if(statusFilter!=='all') rows=rows.filter(r=>r.status===statusFilter);
+  if(shortfallOn) rows=rows.filter(r=>{const m=workedMinutes(r);return m!=null && m<SHORTFALL_MIN;});
   if(letterFilter) rows=rows.filter(r=>(r.name||'').toUpperCase().startsWith(letterFilter));
   return rows;
 }
@@ -351,12 +367,13 @@ function renderDay(){
   renderStats();
   let rows=baseFiltered();
   if(statusFilter!=='all') rows=rows.filter(r=>r.status===statusFilter);
+  if(shortfallOn) rows=rows.filter(r=>{const m=workedMinutes(r);return m!=null && m<SHORTFALL_MIN;});
 
   // which first-letters exist in the current (pre-letter) set
   const available=new Set(rows.map(r=>(r.name||'').charAt(0).toUpperCase()).filter(c=>c>='A'&&c<='Z'));
   if(letterFilter) rows=rows.filter(r=>(r.name||'').toUpperCase().startsWith(letterFilter));
 
-  $('summary').textContent=`Attendance for ${selectedDate}`+(statusFilter==='all'?'':` · showing ${statusLabel(statusFilter)}`)+(letterFilter?` · names in ${letterFilter}`:'');
+  $('summary').textContent=`Attendance for ${selectedDate}`+(statusFilter==='all'?'':` · showing ${statusLabel(statusFilter)}`)+(shortfallOn?' · worked < 8.5h':'')+(letterFilter?` · names in ${letterFilter}`:'');
 
   const el=$('dayTable');
   if(!rows.length){
@@ -436,6 +453,21 @@ $('lightbox').onclick=()=>{ $('lightbox').style.display='none'; };
 $('clearBtn').onclick=async()=>{
   if(!confirm(`Delete all attendance records and photos for ${selectedDate}? This cannot be undone.`)) return;
   try{ await api('/api/records?date='+encodeURIComponent(selectedDate),{method:'DELETE'}); loadDay(); }catch(e){}
+};
+$('xlsxInput').onchange=async()=>{
+  const f=$('xlsxInput').files[0]; if(!f) return;
+  const fd=new FormData(); fd.append('file',f); fd.append('date',selectedDate);
+  $('summary').textContent='Importing '+f.name+'… this may take a moment.';
+  try{
+    const res=await api('/api/import-attendance',{method:'POST',body:fd});
+    const d=await res.json();
+    if(!res.ok){ alert(d.error||'Import failed.'); }
+    else{
+      alert(`Imported for ${d.date}:\n• ${d.matched} employees matched (${d.present} with In/Out times)\n• ${d.records} time records created\n• ${d.unmatched} rows didn't match the roster`);
+      selectedDate=d.date; const [y,mo]=d.date.split('-'); calY=+y; calM=+mo-1; renderCal(); loadDay();
+    }
+  }catch(e){}
+  $('xlsxInput').value='';
 };
 
 // ---- employees ----

@@ -80,6 +80,10 @@
     <label>Name</label>
     <input id="name" placeholder="Auto-filled from Associate ID" autocomplete="off" readonly>
     <div class="hint" id="nameHint"></div>
+    <label>Business Unit</label>
+    <input id="bu" placeholder="Auto-filled from Associate ID" autocomplete="off" readonly>
+    <label>Team</label>
+    <input id="team" placeholder="Auto-filled from Associate ID" autocomplete="off" readonly>
     <label>Entry type</label>
     <select id="type">
       <option value="start">Start of the day</option>
@@ -139,13 +143,17 @@ let lookupTimer=null;
 $('empId').oninput=()=>{
   clearTimeout(lookupTimer);
   const id=$('empId').value.trim();
-  $('name').value=''; $('nameHint').textContent='';
+  $('name').value=''; $('bu').value=''; $('team').value=''; $('nameHint').textContent='';
   if(!id) return;
   lookupTimer=setTimeout(async()=>{
     try{
       const d=await (await fetch('/api/lookup/'+encodeURIComponent(id))).json();
-      if(d && d.name){ $('name').value=d.name; $('nameHint').textContent='Name auto-filled from roster.'; }
-      else { $('nameHint').textContent='No employee found for this Associate ID.'; }
+      if(d && d.name){
+        $('name').value=d.name;
+        $('bu').value=d.businessUnit||'';
+        $('team').value=d.team||'';
+        $('nameHint').textContent='Details auto-filled from roster.';
+      } else { $('nameHint').textContent='No employee found for this Associate ID.'; }
     }catch(e){ $('nameHint').textContent=''; }
   },350);
 };

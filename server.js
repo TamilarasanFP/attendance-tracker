@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const compression = require('compression');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const XLSX = require('xlsx');
 const db = require('./db');
 
 const app = express();
@@ -129,6 +130,7 @@ const upload = multer({
   limits: { fileSize: 12 * 1024 * 1024, files: 1 },
   fileFilter: (req, file, cb) => cb(null, /^image\//.test(file.mimetype)) // accept images only; others silently dropped
 });
+const uploadExcel = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 1 } });
 
 // ---- helpers ----
 // Format an absolute instant into date + time in a fixed timezone (default IST),
@@ -242,7 +244,7 @@ app.post('/api/checkin', upload.single('photo'), async (req, res) => {
 app.get('/api/lookup/:empId', async (req, res) => {
   try {
     const e = await db.findEmployee(req.params.empId);
-    res.json({ name: e ? e.name : null });
+    res.json(e ? { name: e.name, businessUnit: e.businessUnit, team: e.team, campus: e.campus } : { name: null });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Lookup failed.' }); }
 });
 
@@ -498,6 +500,97 @@ app.patch('/api/records/:id', requireAdmin, async (req, res) => {
 app.delete('/api/records/:id', requireAdmin, async (req, res) => {
   try { await db.deleteRecord(req.params.id); audit(req, `delete record ${req.params.id}`); res.json({ ok: true }); }
   catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---- ADMIN: import attendance from a biometric Excel export ----
+// Matches "E. Code" to Associate ID; "A. InTime" -> start, "A. OutTime" -> end.
+const XL_MONTHS = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
+const xlNorm = s => String(s == null ? '' : s).replace(/\s+/g, '').toLowerCase();
+function xlFileDate(rows) {
+  for (const row of rows) for (const cell of row) {
+    const m = /(\d{1,2})-(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)-(\d{4})/i.exec(String(cell || ''));
+    if (m) return `${m[3]}-${XL_MONTHS[m[2].toLowerCase()]}-${String(m[1]).padStart(2, '0')}`;
+  }
+  return null;
+}
+function xlTime(v) {
+  const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(String(v == null ? '' : v).trim());
+  if (!m) return '';
+  const p = n => String(n).padStart(2, '0');
+  const hh = +m[1], mm = +m[2], ss = m[3] ? +m[3] : 0;
+  if (hh > 47 || mm > 59 || ss > 59 || (hh === 0 && mm === 0 && ss === 0)) return ''; // skip 00:00 / invalid
+  return `${p(hh)}:${p(mm)}:${p(ss)}`;
+}
+// Normalise a biometric E.Code to the 6-digit Associate ID:
+//  - 6 digits: use as-is
+//  - 5 digits starting with 8: insert 0 after the 8  (81522 -> 801522)
+//  - 5 digits starting with anything else: prefix 1  (35454 -> 135454)
+function xlNormCode(raw) {
+  const code = String(raw == null ? '' : raw).trim();
+  if (!/^\d+$/.test(code)) return code;
+  if (code.length === 5) return code[0] === '8' ? code[0] + '0' + code.slice(1) : '1' + code;
+  return code;
+}
+function xlRec(safeId, empId, name, type, date, time, now) {
+  const slot = type === 'start' ? 'startoftheday' : 'endoftheday';
+  return { id: `${safeId}_${date}_${slot}`, empId, name, type, date, time, capturedAt: new Date(`${date}T${time}+05:30`).toISOString(), serverTime: now, photo: null, lat: null, lng: null };
+}
+
+app.post('/api/import-attendance', requireAdmin, uploadExcel.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+    let wb;
+    try { wb = XLSX.read(req.file.buffer, { type: 'buffer' }); }
+    catch (e) { return res.status(400).json({ error: 'Could not read the Excel file.' }); }
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+
+    // locate header row + the columns we need
+    let hIdx = -1; const col = {};
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].map(xlNorm).includes('e.code')) {
+        hIdx = i;
+        rows[i].forEach((c, j) => {
+          const n = xlNorm(c);
+          if (n === 'e.code' || n === 'ecode') col.ecode = j;
+          else if (n === 'a.intime') col.intime = j;
+          else if (n === 'a.outtime') col.outtime = j;
+          else if (n === 'name') col.name = j;
+        });
+        break;
+      }
+    }
+    if (hIdx < 0 || col.ecode == null || col.intime == null || col.outtime == null) {
+      return res.status(400).json({ error: 'Could not find "E. Code", "A. InTime" and "A. OutTime" columns in the sheet.' });
+    }
+
+    const date = xlFileDate(rows) || (req.body.date || '').trim();
+    if (!validDate(date)) return res.status(400).json({ error: 'Could not determine the attendance date from the file.' });
+
+    const roster = {};
+    for (const e of await db.listEmployees()) roster[String(e.empId).trim()] = e;
+
+    const now = new Date().toISOString();
+    const recs = [];
+    let matched = 0, unmatched = 0, present = 0;
+    for (let i = hIdx + 1; i < rows.length; i++) {
+      const r = rows[i];
+      const code = String(r[col.ecode] == null ? '' : r[col.ecode]).trim();
+      if (!code) continue;
+      const emp = roster[xlNormCode(code)] || roster[code]; // normalised first, then raw
+      if (!emp) { unmatched++; continue; }
+      matched++;
+      const inT = xlTime(r[col.intime]), outT = xlTime(r[col.outtime]);
+      const id = String(emp.empId).trim();                 // store under the roster Associate ID
+      const safeId = id.replace(/[^A-Za-z0-9._-]/g, '') || 'unknown';
+      if (inT) recs.push(xlRec(safeId, id, emp.name, 'start', date, inT, now));
+      if (outT) recs.push(xlRec(safeId, id, emp.name, 'end', date, outT, now));
+      if (inT || outT) present++;
+    }
+    for (let i = 0; i < recs.length; i += 500) await db.insertRecords(recs.slice(i, i + 500));
+    audit(req, `import-attendance ${date} matched=${matched} present=${present} recs=${recs.length}`);
+    res.json({ ok: true, date, matched, unmatched, present, records: recs.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Import failed: ' + err.message }); }
 });
 
 // ---- ADMIN: clear records (a single date if ?date= given, else everything) + photos ----
