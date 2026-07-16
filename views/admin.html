@@ -50,6 +50,14 @@
   input,textarea,select{padding:10px 12px;border-radius:9px;border:1px solid var(--border);background:var(--field);color:var(--txt);font-size:14px;}
   input.search{max-width:220px;}
   .toolbar select{max-width:190px;}
+  .msel{position:relative;}
+  .msel-btn{padding:10px 12px;border-radius:9px;border:1px solid var(--border);background:var(--field);color:var(--txt);font-size:14px;cursor:pointer;min-width:170px;max-width:200px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .msel-btn:hover{border-color:var(--acc);}
+  .msel-panel{position:absolute;z-index:40;top:calc(100% + 4px);left:0;min-width:210px;max-height:280px;overflow:auto;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:6px;display:none;box-shadow:0 14px 34px -12px rgba(0,0,0,.6);}
+  .msel.open .msel-panel{display:block;}
+  .msel-panel label{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:7px;font-size:13px;cursor:pointer;color:var(--txt);text-transform:none;letter-spacing:0;margin:0;font-weight:400;}
+  .msel-panel label:hover{background:var(--field);}
+  .msel-panel input[type=checkbox]{width:auto;accent-color:var(--acc);}
   .ghost{padding:9px 14px;border:1px solid var(--border);background:transparent;color:var(--txt);border-radius:9px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-block;}
   .ghost.active{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600;}
   .btn{padding:10px 16px;border:none;border-radius:9px;background:var(--acc);color:#ffffff;font-weight:600;cursor:pointer;font-size:14px;}
@@ -130,13 +138,13 @@
       </div>
       <div class="toolbar">
         <input class="search" id="search" placeholder="Filter by name or ID…">
-        <select id="fBU"><option value="">All business units</option></select>
-        <select id="fTeam"><option value="">All teams</option></select>
-        <select id="fCampus"><option value="">All campuses</option></select>
+        <div class="msel" id="mBU"><button type="button" class="msel-btn">All business units ▾</button><div class="msel-panel"></div></div>
+        <div class="msel" id="mTeam"><button type="button" class="msel-btn">All teams ▾</button><div class="msel-panel"></div></div>
+        <div class="msel" id="mCampus"><button type="button" class="msel-btn">All campuses ▾</button><div class="msel-panel"></div></div>
         <button class="ghost" id="refreshBtn">Refresh</button>
         <label class="ghost" style="cursor:pointer;">Import Excel<input type="file" id="xlsxInput" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none;"></label>
-        <button class="ghost" id="exportBtn">Export CSV</button>
         <button class="ghost" id="clearBtn">Clear this date</button>
+        <button class="ghost" id="exportBtn" style="margin-left:auto;">Export CSV</button>
       </div>
       <div class="summary" id="summary"></div>
       <div id="dayTable"><div class="empty">Loading…</div></div>
@@ -258,12 +266,35 @@ function renderCal(){
 $('refreshBtn').onclick=loadDay;
 let _searchTimer=null;
 $('search').oninput=()=>{ clearTimeout(_searchTimer); _searchTimer=setTimeout(()=>{ page=1; renderDay(); }, 180); };
-['fBU','fTeam','fCampus'].forEach(id=>$(id).onchange=()=>{ page=1; renderDay(); });
+
+// ---- multi-select filter dropdowns (Business Unit / Team / Campus) ----
+const FSEL={ bu:new Set(), team:new Set(), campus:new Set() };
+function mselLabel(sel, allLabel){ return (sel.size===0 ? allLabel : sel.size===1 ? [...sel][0] : sel.size+' selected')+' ▾'; }
+function renderMsel(id, key, vals, allLabel){
+  const sel=FSEL[key];
+  for(const v of [...sel]) if(!vals.includes(v)) sel.delete(v);   // drop options that no longer exist
+  const wrap=$(id), btn=wrap.querySelector('.msel-btn'), panel=wrap.querySelector('.msel-panel');
+  btn.textContent=mselLabel(sel, allLabel);
+  panel.innerHTML = vals.length
+    ? vals.map(v=>`<label><input type="checkbox" value="${esc(v)}" ${sel.has(v)?'checked':''}>${esc(v)}</label>`).join('')
+    : '<div style="padding:6px 8px;color:var(--muted);font-size:12px;">No options</div>';
+  panel.querySelectorAll('input').forEach(cb=>cb.onchange=()=>{
+    if(cb.checked) sel.add(cb.value); else sel.delete(cb.value);
+    btn.textContent=mselLabel(sel, allLabel);
+    page=1; renderDay();
+  });
+}
+document.querySelectorAll('.msel').forEach(w=>w.addEventListener('click',e=>e.stopPropagation()));
+document.querySelectorAll('.msel .msel-btn').forEach(b=>b.onclick=()=>{
+  const w=b.closest('.msel'), wasOpen=w.classList.contains('open');
+  document.querySelectorAll('.msel').forEach(x=>x.classList.remove('open'));
+  if(!wasOpen) w.classList.add('open');
+});
+document.addEventListener('click',()=>document.querySelectorAll('.msel').forEach(x=>x.classList.remove('open')));
 
 const PAGE_SIZE=50;
-let statusFilter='all';   // all | present | partial | absent | permission
+let statusFilter='all';   // all | present | partial | absent | permission | normal_leave | shortfall
 let letterFilter='';      // '' = all, else 'A'..'Z'
-let shortfallOn=false;    // worked < 8.5h
 let editingStatusEmp=null;
 let page=1;
 const SHORTFALL_MIN=8.5*60;
@@ -272,6 +303,12 @@ function workedMinutes(r){
   const a=new Date(r.start.capturedAt).getTime(), b=new Date(r.end.capturedAt).getTime();
   if(isNaN(a)||isNaN(b)||b<=a) return null;
   return (b-a)/60000;
+}
+// Apply the single active stat-card filter (status OR shortfall).
+function applyActive(rows){
+  if(statusFilter==='all') return rows;
+  if(statusFilter==='shortfall') return rows.filter(r=>{const m=workedMinutes(r);return m!=null && m<SHORTFALL_MIN;});
+  return rows.filter(r=>r.status===statusFilter);
 }
 
 async function loadDay(){
@@ -296,24 +333,18 @@ function wireAlpha(el){
 }
 function populateFilters(){
   const uniq=k=>[...new Set(DAY.map(r=>r[k]).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const fill=(id,vals,allLabel)=>{
-    const sel=$(id), cur=sel.value;
-    sel.innerHTML=`<option value="">${allLabel}</option>`+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
-    sel.value=vals.includes(cur)?cur:'';
-  };
-  fill('fBU',uniq('businessUnit'),'All business units');
-  fill('fTeam',uniq('team'),'All teams');
-  fill('fCampus',uniq('campus'),'All campuses');
+  renderMsel('mBU','bu',uniq('businessUnit'),'All business units');
+  renderMsel('mTeam','team',uniq('team'),'All teams');
+  renderMsel('mCampus','campus',uniq('campus'),'All campuses');
 }
-// Rows filtered by search + BU/Team/Campus (everything except the status-card filter).
+// Rows filtered by search + (multi) BU/Team/Campus. Everything except the status-card filter.
 function baseFiltered(){
   let rows=DAY;
   const q=$('search').value.trim().toLowerCase();
-  const fbu=$('fBU').value, ft=$('fTeam').value, fc=$('fCampus').value;
-  if(fbu) rows=rows.filter(r=>(r.businessUnit||'')===fbu);
-  if(ft)  rows=rows.filter(r=>(r.team||'')===ft);
-  if(fc)  rows=rows.filter(r=>(r.campus||'')===fc);
-  if(q)   rows=rows.filter(r=>r.name.toLowerCase().includes(q)||r.empId.toLowerCase().includes(q));
+  if(FSEL.bu.size)     rows=rows.filter(r=>FSEL.bu.has(r.businessUnit||''));
+  if(FSEL.team.size)   rows=rows.filter(r=>FSEL.team.has(r.team||''));
+  if(FSEL.campus.size) rows=rows.filter(r=>FSEL.campus.has(r.campus||''));
+  if(q)                rows=rows.filter(r=>r.name.toLowerCase().includes(q)||r.empId.toLowerCase().includes(q));
   return rows;
 }
 function renderStats(){
@@ -333,18 +364,15 @@ function renderStats(){
     card('permission','permission','Permission',permission)+
     card('normal_leave','normal_leave','Normal Leave',normalLeave)+
     card('partial','partial','Partial',partial)+
-    `<div class="stat shortfall ${shortfallOn?'active':''}" data-shortfall="1"><div class="n">${shortfall}</div><div class="l">Time Shortfall (&lt;8.5h)</div></div>`;
+    card('shortfall','shortfall','Time Shortfall (&lt;8.5h)',shortfall);
   $('stats').querySelectorAll('.stat').forEach(s=>s.onclick=()=>{
-    if(s.dataset.shortfall){ shortfallOn=!shortfallOn; }
-    else { statusFilter = statusFilter===s.dataset.filter ? 'all' : s.dataset.filter; } // click again to clear
+    statusFilter = statusFilter===s.dataset.filter ? 'all' : s.dataset.filter; // one active at a time; click again clears to All
     page=1; renderDay();
   });
 }
 // Rows after ALL active filters (search + BU/Team/Campus + status + letter). No pagination.
 function filteredRows(){
-  let rows=baseFiltered();
-  if(statusFilter!=='all') rows=rows.filter(r=>r.status===statusFilter);
-  if(shortfallOn) rows=rows.filter(r=>{const m=workedMinutes(r);return m!=null && m<SHORTFALL_MIN;});
+  let rows=applyActive(baseFiltered());
   if(letterFilter) rows=rows.filter(r=>(r.name||'').toUpperCase().startsWith(letterFilter));
   return rows;
 }
@@ -365,15 +393,14 @@ $('exportBtn').onclick=()=>{
 };
 function renderDay(){
   renderStats();
-  let rows=baseFiltered();
-  if(statusFilter!=='all') rows=rows.filter(r=>r.status===statusFilter);
-  if(shortfallOn) rows=rows.filter(r=>{const m=workedMinutes(r);return m!=null && m<SHORTFALL_MIN;});
+  let rows=applyActive(baseFiltered());
 
   // which first-letters exist in the current (pre-letter) set
   const available=new Set(rows.map(r=>(r.name||'').charAt(0).toUpperCase()).filter(c=>c>='A'&&c<='Z'));
   if(letterFilter) rows=rows.filter(r=>(r.name||'').toUpperCase().startsWith(letterFilter));
 
-  $('summary').textContent=`Attendance for ${selectedDate}`+(statusFilter==='all'?'':` · showing ${statusLabel(statusFilter)}`)+(shortfallOn?' · worked < 8.5h':'')+(letterFilter?` · names in ${letterFilter}`:'');
+  const activeLabel = statusFilter==='shortfall' ? 'Time Shortfall (<8.5h)' : statusLabel(statusFilter);
+  $('summary').textContent=`Attendance for ${selectedDate}`+(statusFilter==='all'?'':` · showing ${activeLabel}`)+(letterFilter?` · names in ${letterFilter}`:'');
 
   const el=$('dayTable');
   if(!rows.length){
