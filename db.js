@@ -176,6 +176,13 @@ async function clearRecords() {
   const { error } = await client().from('records').delete().neq('id', '');
   if (error) throw error;
 }
+async function clearRecordsByDate(date) {
+  const recs = await recordsByDate(date);
+  const files = recs.map(r => r.photo).filter(Boolean);
+  if (files.length) { await client().storage.from(BUCKET).remove(files); for (const f of files) photoCache.delete(f); }
+  const { error } = await client().from('records').delete().eq('date', date);
+  if (error) throw error;
+}
 
 // ---------- photos (Supabase Storage) ----------
 async function uploadPhoto(file, buffer) {
@@ -205,7 +212,7 @@ async function ping() {
 module.exports = {
   isConfigured, BUCKET,
   listEmployees, listExited, setExited, findEmployee, upsertEmployee, upsertEmployees, updateEmployee, deleteEmployee, clearEmployees,
-  insertRecord, listRecords, recordsByDate, getRecord, updateRecord, deleteRecord, clearRecords,
+  insertRecord, listRecords, recordsByDate, getRecord, updateRecord, deleteRecord, clearRecords, clearRecordsByDate,
   statusByDate, setStatus,
   listOptions, addOptions, removeOption,
   uploadPhoto, downloadPhoto, ping

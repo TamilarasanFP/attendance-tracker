@@ -35,12 +35,15 @@
   .pill.permission{background:rgba(59,130,246,.16);color:#93c5fd;}
   .pill.normal_leave{background:rgba(168,85,247,.16);color:#d8b4fe;}
   .statusSel{padding:5px 8px;font-size:12px;border-radius:6px;max-width:150px;}
+  .rowedit{width:100%;padding:6px 8px;font-size:13px;border-radius:7px;}
   .tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:5px;font-size:10px;background:rgba(148,163,184,.18);color:#cbd5e1;}
   .missing{color:#64748b;}
   .maplink{text-decoration:none;font-size:13px;margin-left:2px;}
   .mini{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:5px;cursor:pointer;font-size:12px;padding:3px 10px;}
   .mini:hover{color:var(--txt);border-color:var(--acc);}
   .mini.danger:hover{color:#fca5a5;border-color:var(--bad);}
+  button,.ghost,.tab,.stat,.alpha-b,.cal-nav{transition:transform .06s ease, border-color .12s, background .12s;}
+  button:active,.ghost:active,.tab:active,.stat:active,.alpha-b:active,.cal-nav:active{transform:translateY(1px);}
   .thumb{width:56px;height:42px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:pointer;background:#000;}
   .thumb.ph{display:inline-block;color:#475569;font-size:10px;text-align:center;line-height:42px;}
   .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
@@ -129,7 +132,7 @@
         <select id="fCampus"><option value="">All campuses</option></select>
         <button class="ghost" id="refreshBtn">Refresh</button>
         <button class="ghost" id="exportBtn">Export CSV</button>
-        <button class="ghost" id="clearBtn">Clear all records</button>
+        <button class="ghost" id="clearBtn">Clear this date</button>
       </div>
       <div class="summary" id="summary"></div>
       <div id="dayTable"><div class="empty">Loading…</div></div>
@@ -152,8 +155,8 @@
     </div>
     <div class="card">
       <h2>Bulk import</h2>
-      <p style="font-size:13px;color:var(--muted);margin:0 0 8px;">One employee per line as <code>Name, Associate ID, Business Unit, Team, Campus</code> (comma or tab separated). Business Unit, Team and Campus are optional. A header row is ignored — you can paste straight from your sheet.</p>
-      <textarea id="bulkText" rows="5" style="width:100%;" placeholder="Priya Kumar, 135454, Engineering, Platform, Chennai&#10;Arun Raj, 135628, Sales, Field, Bangalore"></textarea>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 8px;">One employee per line as <code>Associate ID, Name, Business Unit, Team, Campus</code> (comma or tab separated). Business Unit, Team and Campus are optional. A header row is ignored — you can paste straight from your sheet.</p>
+      <textarea id="bulkText" rows="5" style="width:100%;" placeholder="135454, Priya Kumar, Engineering, Platform, Chennai&#10;135628, Arun Raj, Sales, Field, Bangalore"></textarea>
       <div style="margin-top:10px;"><button class="btn" id="bulkBtn">Import</button></div>
       <div class="msg" id="bulkMsg"></div>
     </div>
@@ -205,7 +208,8 @@ async function api(path, opts){
   return res;
 }
 
-// ---- tabs ----
+// ---- tabs (render cached data instantly; only fetch on first open) ----
+let dayLoaded=false, empLoaded=false;
 document.querySelectorAll('.tab').forEach(t=>{
   t.onclick=()=>{
     document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
@@ -213,7 +217,8 @@ document.querySelectorAll('.tab').forEach(t=>{
     const v=t.dataset.view;
     $('attendanceView').style.display=v==='attendance'?'':'none';
     $('employeesView').style.display=v==='employees'?'':'none';
-    if(v==='attendance') loadDay(); else loadEmployees();
+    if(v==='attendance'){ dayLoaded ? renderDay() : loadDay(); }
+    else { empLoaded ? (renderEmployees(), renderExited(), renderOptionManager()) : loadEmployees(); }
   };
 });
 
@@ -258,7 +263,7 @@ let editingStatusEmp=null;
 let page=1;
 
 async function loadDay(){
-  try{ DAY=await (await api('/api/day/'+selectedDate)).json(); }
+  try{ DAY=await (await api('/api/day/'+selectedDate)).json(); dayLoaded=true; }
   catch(e){ if(e.message!=='unauth') DAY=[]; }
   page=1; letterFilter='';
   populateFilters();
@@ -429,8 +434,8 @@ function thumb(r){
 }
 $('lightbox').onclick=()=>{ $('lightbox').style.display='none'; };
 $('clearBtn').onclick=async()=>{
-  if(!confirm('Delete ALL attendance records and their photos? This cannot be undone.')) return;
-  try{ await api('/api/records',{method:'DELETE'}); loadDay(); }catch(e){}
+  if(!confirm(`Delete all attendance records and photos for ${selectedDate}? This cannot be undone.`)) return;
+  try{ await api('/api/records?date='+encodeURIComponent(selectedDate),{method:'DELETE'}); loadDay(); }catch(e){}
 };
 
 // ---- employees ----
@@ -518,7 +523,7 @@ const EMP_PAGE_SIZE=50;
 let _empSearchTimer=null;
 $('empSearch').oninput=()=>{ clearTimeout(_empSearchTimer); _empSearchTimer=setTimeout(()=>{ empPage=1; renderEmployees(); }, 180); };
 async function loadEmployees(){
-  try{ EMP_LIST=await (await api('/api/employees')).json(); }catch(e){ return; }
+  try{ EMP_LIST=await (await api('/api/employees')).json(); empLoaded=true; }catch(e){ return; }
   $('empCount').textContent=EMP_LIST.length;
   loadOptions();         // refresh dropdown option lists (picks up any newly-added values)
   loadExited();          // refresh the exit list
@@ -540,10 +545,10 @@ function renderEmployees(){
   for(const e of pageList){
     if(e.empId===editingEmpId){
       html+=`<tr><td>${esc(e.empId)}</td>`+
-        `<td><input id="edName" value="${esc(e.name)}"></td>`+
-        `<td><input id="edBU" list="buList" value="${esc(e.businessUnit||'')}" autocomplete="off"></td>`+
-        `<td><input id="edTeam" list="teamList" value="${esc(e.team||'')}" autocomplete="off"></td>`+
-        `<td><input id="edCamp" list="campusList" value="${esc(e.campus||'')}" autocomplete="off"></td>`+
+        `<td><input class="rowedit" id="edName" value="${esc(e.name)}"></td>`+
+        `<td><input class="rowedit" id="edBU" list="buList" value="${esc(e.businessUnit||'')}" autocomplete="off"></td>`+
+        `<td><input class="rowedit" id="edTeam" list="teamList" value="${esc(e.team||'')}" autocomplete="off"></td>`+
+        `<td><input class="rowedit" id="edCamp" list="campusList" value="${esc(e.campus||'')}" autocomplete="off"></td>`+
         `<td style="text-align:right;white-space:nowrap;"><button class="mini" data-save="${esc(e.empId)}">Save</button> <button class="mini" data-cancel="1">Cancel</button></td></tr>`;
     }else{
       html+=`<tr><td>${esc(e.empId)}</td><td>${esc(e.name)}</td>`+
@@ -580,17 +585,33 @@ async function saveEmp(empId){
     editingEmpId=null; loadEmployees();
   }catch(e){}
 }
+function setCounts(){ $('empCount').textContent=EMP_LIST.length; const c=$('exitCount'); if(c) c.textContent=EXITED_LIST.length; }
 async function delEmp(empId){
   if(!confirm('Permanently delete '+empId+' from the roster? Past attendance records are kept.')) return;
-  try{ await api('/api/employees/'+encodeURIComponent(empId),{method:'DELETE'}); loadEmployees(); loadExited(); }catch(e){}
+  // optimistic: remove from whichever list it's in, re-render immediately
+  EMP_LIST=EMP_LIST.filter(e=>e.empId!==empId);
+  EXITED_LIST=EXITED_LIST.filter(e=>e.empId!==empId);
+  setCounts(); renderEmployees(); renderExited();
+  try{ const r=await api('/api/employees/'+encodeURIComponent(empId),{method:'DELETE'}); if(!r.ok) throw 0; }
+  catch(e){ loadEmployees(); loadExited(); } // revert from server on failure
 }
 async function exitEmp(empId){
   if(!confirm('Move '+empId+' to the exit list? They will no longer appear in attendance. History is kept.')) return;
-  try{ await api('/api/employees/'+encodeURIComponent(empId)+'/exit',{method:'POST'}); loadEmployees(); loadExited(); }catch(e){}
+  const emp=EMP_LIST.find(e=>e.empId===empId);
+  EMP_LIST=EMP_LIST.filter(e=>e.empId!==empId);
+  if(emp){ emp.exited=true; EXITED_LIST=[emp,...EXITED_LIST].sort((a,b)=>a.name.localeCompare(b.name)); }
+  setCounts(); renderEmployees(); renderExited();
+  try{ const r=await api('/api/employees/'+encodeURIComponent(empId)+'/exit',{method:'POST'}); if(!r.ok) throw 0; }
+  catch(e){ loadEmployees(); loadExited(); }
 }
 async function restoreEmp(empId){
   if(!confirm('Restore '+empId+' to the active roster?')) return;
-  try{ await api('/api/employees/'+encodeURIComponent(empId)+'/restore',{method:'POST'}); loadEmployees(); loadExited(); }catch(e){}
+  const emp=EXITED_LIST.find(e=>e.empId===empId);
+  EXITED_LIST=EXITED_LIST.filter(e=>e.empId!==empId);
+  if(emp){ emp.exited=false; EMP_LIST=[emp,...EMP_LIST].sort((a,b)=>a.name.localeCompare(b.name)); }
+  setCounts(); renderEmployees(); renderExited();
+  try{ const r=await api('/api/employees/'+encodeURIComponent(empId)+'/restore',{method:'POST'}); if(!r.ok) throw 0; }
+  catch(e){ loadEmployees(); loadExited(); }
 }
 let EXITED_LIST=[], exitPage=1;
 const EXIT_PAGE_SIZE=20;

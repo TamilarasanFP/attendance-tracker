@@ -78,7 +78,7 @@
     <label>Associate ID</label>
     <input id="empId" placeholder="e.g. 135454" autocomplete="off">
     <label>Name</label>
-    <input id="name" placeholder="e.g. Priya Kumar" autocomplete="off">
+    <input id="name" placeholder="Auto-filled from Associate ID" autocomplete="off" readonly>
     <div class="hint" id="nameHint"></div>
     <label>Entry type</label>
     <select id="type">
@@ -134,26 +134,21 @@ function istStamp(d){
 }
 function setStatus(cls,msg){ const s=$('userStatus'); if(!msg){s.className='status';s.innerHTML='';return;} s.className='status show '+cls; s.innerHTML=msg; }
 
-// auto-fill name from roster when the Employee ID matches
-let rosterFilled=false, lookupTimer=null;
+// Name is read-only — always filled automatically from the roster by Associate ID.
+let lookupTimer=null;
 $('empId').oninput=()=>{
   clearTimeout(lookupTimer);
   const id=$('empId').value.trim();
-  if(!id){ unlockName(); return; }
+  $('name').value=''; $('nameHint').textContent='';
+  if(!id) return;
   lookupTimer=setTimeout(async()=>{
     try{
       const d=await (await fetch('/api/lookup/'+encodeURIComponent(id))).json();
-      if(d && d.name){
-        $('name').value=d.name; $('name').readOnly=true; rosterFilled=true;
-        $('nameHint').textContent='Name auto-filled from roster.';
-      }else unlockName();
-    }catch(e){ unlockName(); }
+      if(d && d.name){ $('name').value=d.name; $('nameHint').textContent='Name auto-filled from roster.'; }
+      else { $('nameHint').textContent='No employee found for this Associate ID.'; }
+    }catch(e){ $('nameHint').textContent=''; }
   },350);
 };
-function unlockName(){
-  if(rosterFilled) $('name').value='';
-  $('name').readOnly=false; rosterFilled=false; $('nameHint').textContent='';
-}
 
 async function startCamera(){
   setStatus('','');

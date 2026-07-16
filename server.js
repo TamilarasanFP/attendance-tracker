@@ -7,10 +7,67 @@ const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
 const compression = require('compression');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+app.disable('x-powered-by');
+app.set('trust proxy', 1); // correct client IP behind a proxy/HTTPS terminator (for rate limiting)
+
+// ---- security headers (CSP tuned for this app's inline scripts/styles) ----
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'blob:'],
+      mediaSrc: ["'self'", 'blob:'],
+      connectSrc: ["'self'"],
+      frameAncestors: ["'none'"],   // clickjacking protection
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      objectSrc: ["'none'"]
+    }
+  },
+  crossOriginEmbedderPolicy: false
+}));
+
+// ---- optional HTTPS redirect (behind a proxy that sets x-forwarded-proto) ----
+if (process.env.FORCE_HTTPS === 'true') {
+  app.use((req, res, next) => {
+    if (req.headers['x-forwarded-proto'] === 'http') return res.redirect(301, 'https://' + req.headers.host + req.url);
+    next();
+  });
+}
+
+// ---- rate limiters ----
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many login attempts. Try again in a few minutes.' } });
+const publicLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests. Please slow down.' } });
+const generalLimiter = rateLimit({ windowMs: 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false, skip: req => req.path.startsWith('/api/photo'), message: { error: 'Too many requests.' } });
+
+// ---- CSRF defense: mutating API requests must be same-origin ----
+function sameOriginGuard(req, res, next) {
+  const mutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
+  if (!mutating || !req.path.startsWith('/api/')) return next();
+  const origin = req.headers.origin || req.headers.referer;
+  if (origin) {
+    try { if (new URL(origin).host !== req.headers.host) return res.status(403).json({ error: 'Cross-origin request blocked.' }); }
+    catch (e) { return res.status(403).json({ error: 'Invalid origin.' }); }
+  }
+  next();
+}
+
+// ---- input guards ----
+const MAXLEN = 120;
+const tooLong = (...vals) => vals.some(v => typeof v === 'string' && v.length > MAXLEN);
+const validDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d);
+
+// ---- audit logging of sensitive actions ----
+function clientIp(req) { return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || req.socket.remoteAddress || '?'; }
+function audit(req, msg) { console.log(`[AUDIT] ${new Date().toISOString()} ip=${clientIp(req)} ${msg}`); }
 
 if (!db.isConfigured()) {
   console.warn('\n[WARN] Supabase is NOT configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY ' +
@@ -20,11 +77,18 @@ if (!db.isConfigured()) {
 // ---- admin auth config ----
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 if (ADMIN_PASSWORD === 'admin123') {
-  console.warn('[WARN] Using the DEFAULT admin password "admin123". ' +
-    'Set ADMIN_PASSWORD before real use.\n');
+  console.warn('[WARN] Using the DEFAULT admin password "admin123". Set ADMIN_PASSWORD before real use.\n');
+} else if (ADMIN_PASSWORD.length < 10) {
+  console.warn('[WARN] ADMIN_PASSWORD is short (<10 chars). Use a longer, unique passphrase.\n');
 }
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
+// Set COOKIE_SECURE=true once you're serving over HTTPS (recommended for production).
+const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true';
+const cookieBase = `admin_session=`;
+const cookieFlags = `HttpOnly; SameSite=Strict; Path=/${COOKIE_SECURE ? '; Secure' : ''}`;
+// purge expired sessions hourly
+setInterval(() => { const now = Date.now(); for (const [t, exp] of sessions) if (now > exp) sessions.delete(t); }, 60 * 60 * 1000).unref();
 
 function newSession() {
   const token = crypto.randomBytes(24).toString('hex');
@@ -51,13 +115,20 @@ function getCookie(req, name) {
   return null;
 }
 function requireAdmin(req, res, next) {
-  if (validSession(getCookie(req, 'admin_session'))) return next();
+  if (validSession(getCookie(req, 'admin_session'))) {
+    res.setHeader('Cache-Control', 'no-store'); // don't cache sensitive admin data (handlers may override, e.g. photos)
+    return next();
+  }
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Not authenticated.' });
   return res.redirect('/admin/login');
 }
 
 // ---- uploads held in memory (then pushed to Supabase Storage) ----
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 12 * 1024 * 1024, files: 1 },
+  fileFilter: (req, file, cb) => cb(null, /^image\//.test(file.mimetype)) // accept images only; others silently dropped
+});
 
 // ---- helpers ----
 // Format an absolute instant into date + time in a fixed timezone (default IST),
@@ -86,9 +157,16 @@ function workedLabel(start, end) {
 }
 
 app.use(compression());                 // gzip JSON/HTML/CSS responses
-app.use(express.json());
+app.use(express.json({ limit: '2mb' })); // bounded body (bulk import can be sizeable)
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h', etag: true }));
 const VIEWS = path.join(__dirname, 'views');
+
+app.use('/api/', generalLimiter);        // volumetric protection (photos excluded)
+app.use(sameOriginGuard);                // CSRF: block cross-origin mutations
+// throttle the public + auth endpoints (brute-force / abuse protection)
+app.use('/api/admin/login', loginLimiter);
+app.use('/api/checkin', publicLimiter);
+app.use('/api/lookup', publicLimiter);
 
 // ---- ADMIN AUTH ----
 app.get('/admin/login', (req, res) => {
@@ -96,16 +174,19 @@ app.get('/admin/login', (req, res) => {
   res.sendFile(path.join(VIEWS, 'login.html'));
 });
 app.post('/api/admin/login', (req, res) => {
-  if (!passwordMatches(req.body && req.body.password)) return res.status(401).json({ error: 'Incorrect password.' });
+  if (!passwordMatches(req.body && req.body.password)) {
+    audit(req, 'login FAIL');
+    return res.status(401).json({ error: 'Incorrect password.' });
+  }
+  audit(req, 'login OK');
   const token = newSession();
-  res.setHeader('Set-Cookie',
-    `admin_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_TTL_MS / 1000}`);
+  res.setHeader('Set-Cookie', `${cookieBase}${token}; ${cookieFlags}; Max-Age=${SESSION_TTL_MS / 1000}`);
   res.json({ ok: true });
 });
 app.post('/api/admin/logout', (req, res) => {
   const t = getCookie(req, 'admin_session');
   if (t) sessions.delete(t);
-  res.setHeader('Set-Cookie', 'admin_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+  res.setHeader('Set-Cookie', `${cookieBase}; ${cookieFlags}; Max-Age=0`);
   res.json({ ok: true });
 });
 app.get('/admin', requireAdmin, (req, res) => res.sendFile(path.join(VIEWS, 'admin.html')));
@@ -117,6 +198,7 @@ app.post('/api/checkin', upload.single('photo'), async (req, res) => {
     const empId = (req.body.empId || '').trim();
     const type = req.body.type === 'end' ? 'end' : 'start';
     if (!name || !empId) return res.status(400).json({ error: 'Name and Employee ID are required.' });
+    if (tooLong(name, empId)) return res.status(400).json({ error: 'Name/ID too long.' });
     if (!req.file) return res.status(400).json({ error: 'Capture a photo with the camera before submitting.' });
 
     const rosterEmp = await db.findEmployee(empId);
@@ -152,7 +234,7 @@ app.post('/api/checkin', upload.single('photo'), async (req, res) => {
     res.json({ ok: true, type, name, empId, date, time, lat, lng });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Processing failed: ' + err.message });
+    res.status(500).json({ error: 'Could not process the check-in. Please try again.' });
   }
 });
 
@@ -161,7 +243,7 @@ app.get('/api/lookup/:empId', async (req, res) => {
   try {
     const e = await db.findEmployee(req.params.empId);
     res.json({ name: e ? e.name : null });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Lookup failed.' }); }
 });
 
 // ---- dropdown option lists (seeded once, then admin-managed) ----
@@ -200,7 +282,7 @@ app.post('/api/options', requireAdmin, async (req, res) => {
     const category = (req.body.category || '').trim();
     const value = (req.body.value || '').trim();
     if (!['business_unit', 'team', 'campus'].includes(category)) return res.status(400).json({ error: 'Invalid category.' });
-    if (!value) return res.status(400).json({ error: 'Value is required.' });
+    if (!value || tooLong(value)) return res.status(400).json({ error: 'A valid value is required.' });
     await db.addOptions([{ category, value }]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -228,6 +310,7 @@ app.post('/api/employees', requireAdmin, async (req, res) => {
     const team = (req.body.team || '').trim();
     const campus = (req.body.campus || '').trim();
     if (!name || !empId) return res.status(400).json({ error: 'Name and Associate ID are required.' });
+    if (tooLong(name, empId, businessUnit, team, campus)) return res.status(400).json({ error: 'One or more fields are too long.' });
     if (await db.findEmployee(empId)) {
       return res.status(409).json({ error: `Associate ID "${empId}" already exists — not added.` });
     }
@@ -248,9 +331,9 @@ app.post('/api/employees/bulk', requireAdmin, async (req, res) => {
       const t = line.trim();
       if (!t) continue;
       const parts = t.split(/[,\t]/).map(s => s.trim());
-      const name = parts[0], empId = parts[1], businessUnit = parts[2] || '', team = parts[3] || '', campus = parts[4] || '';
+      const empId = parts[0], name = parts[1], businessUnit = parts[2] || '', team = parts[3] || '', campus = parts[4] || '';
       if (!empId || !name) { skipped++; continue; }
-      if (/^name$/i.test(name) || /^(associate\s*id|emp(loyee)?\s*id|id)$/i.test(empId)) { skipped++; continue; } // header row
+      if (/^(associate\s*id|emp(loyee)?\s*id|id)$/i.test(empId) || /^name$/i.test(name)) { skipped++; continue; } // header row
       if (existing.has(empId) || seen.has(empId)) { duplicates++; continue; } // already in roster or repeated in paste
       seen.add(empId);
       rows.push({ empId, name, businessUnit, team, campus });
@@ -269,6 +352,7 @@ app.patch('/api/employees/:empId', requireAdmin, async (req, res) => {
     const name = (req.body.name || '').trim();
     if (!name) return res.status(400).json({ error: 'Name is required.' });
     const businessUnit = (req.body.businessUnit || '').trim(), team = (req.body.team || '').trim(), campus = (req.body.campus || '').trim();
+    if (tooLong(name, businessUnit, team, campus)) return res.status(400).json({ error: 'One or more fields are too long.' });
     await db.updateEmployee(empId, { name, businessUnit, team, campus });
     await registerOptions([{ businessUnit, team, campus }]);
     res.json({ ok: true });
@@ -279,19 +363,19 @@ app.get('/api/employees/exited', requireAdmin, async (req, res) => {
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/employees/:empId/exit', requireAdmin, async (req, res) => {
-  try { await db.setExited(req.params.empId, true); res.json({ ok: true }); }
+  try { await db.setExited(req.params.empId, true); audit(req, `exit ${req.params.empId}`); res.json({ ok: true }); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/employees/:empId/restore', requireAdmin, async (req, res) => {
-  try { await db.setExited(req.params.empId, false); res.json({ ok: true }); }
+  try { await db.setExited(req.params.empId, false); audit(req, `restore ${req.params.empId}`); res.json({ ok: true }); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.delete('/api/employees', requireAdmin, async (req, res) => {
-  try { await db.clearEmployees(); res.json({ ok: true }); }
+  try { await db.clearEmployees(); audit(req, 'clear ROSTER'); res.json({ ok: true }); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.delete('/api/employees/:empId', requireAdmin, async (req, res) => {
-  try { await db.deleteEmployee(req.params.empId); res.json({ ok: true }); }
+  try { await db.deleteEmployee(req.params.empId); audit(req, `delete employee ${req.params.empId}`); res.json({ ok: true }); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -299,6 +383,7 @@ app.delete('/api/employees/:empId', requireAdmin, async (req, res) => {
 app.get('/api/day/:date', requireAdmin, async (req, res) => {
   try {
     const date = req.params.date;
+    if (!validDate(date)) return res.status(400).json({ error: 'Invalid date.' });
     const byEmp = {};
     for (const r of await db.recordsByDate(date)) {
       if (!byEmp[r.empId]) byEmp[r.empId] = { name: r.name, start: null, end: null };
@@ -326,11 +411,12 @@ app.post('/api/status', requireAdmin, async (req, res) => {
     const empId = (req.body.empId || '').trim();
     const date = (req.body.date || '').trim();
     const status = (req.body.status || '').trim().toLowerCase();
-    if (!empId || !date) return res.status(400).json({ error: 'empId and date are required.' });
+    if (!empId || !validDate(date)) return res.status(400).json({ error: 'empId and a valid date are required.' });
     if (!['present', 'absent', 'permission', 'normal_leave'].includes(status)) {
       return res.status(400).json({ error: 'status must be present, absent, permission, or normal_leave.' });
     }
     await db.setStatus(empId, date, status);
+    audit(req, `status set ${empId} ${date} -> ${status}`);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -365,7 +451,8 @@ app.get('/api/records', requireAdmin, async (req, res) => {
 // ---- ADMIN: CSV export for a date — EVERY roster employee (absentees included) ----
 app.get('/api/export', requireAdmin, async (req, res) => {
   try {
-    const date = req.query.date || splitDateTime(new Date()).date;
+    const date = (req.query.date || '').trim() || splitDateTime(new Date()).date;
+    if (!validDate(date)) return res.status(400).json({ error: 'Invalid date.' });
     const byEmp = {};
     for (const r of await db.recordsByDate(date)) {
       if (!byEmp[r.empId]) byEmp[r.empId] = { name: r.name, start: null, end: null };
@@ -409,14 +496,28 @@ app.patch('/api/records/:id', requireAdmin, async (req, res) => {
 
 // ---- ADMIN: delete one entry (record row + its photo) ----
 app.delete('/api/records/:id', requireAdmin, async (req, res) => {
-  try { await db.deleteRecord(req.params.id); res.json({ ok: true }); }
+  try { await db.deleteRecord(req.params.id); audit(req, `delete record ${req.params.id}`); res.json({ ok: true }); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ---- ADMIN: clear all (records + stored photos) ----
+// ---- ADMIN: clear records (a single date if ?date= given, else everything) + photos ----
 app.delete('/api/records', requireAdmin, async (req, res) => {
-  try { await db.clearRecords(); res.json({ ok: true }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  try {
+    const date = (req.query.date || '').trim();
+    if (date && !validDate(date)) return res.status(400).json({ error: 'Invalid date.' });
+    if (date) await db.clearRecordsByDate(date);
+    else await db.clearRecords();
+    audit(req, `clear records ${date || 'ALL'}`);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---- catch-all error handler (e.g. multer file-too-large) -> JSON, not HTML ----
+app.use((err, req, res, next) => {
+  if (!err) return next();
+  console.error(err);
+  const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 12 MB).' : 'Request could not be processed.';
+  res.status(400).json({ error: msg });
 });
 
 if (require.main === module) {
