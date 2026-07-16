@@ -52,7 +52,13 @@ const server = app.listen(0, async () => {
                    Buffer.from(`--${b}--\r\n`)];
     return { body: Buffer.concat(parts), headers: { 'Content-Type': `multipart/form-data; boundary=${b}` } };
   };
-  check('POST /api/checkin missing fields -> 400', (await req({ method: 'POST', path: '/api/checkin', ...mp() })).code === 400);
+  check('POST /api/checkin without user session -> 401', (await req({ method: 'POST', path: '/api/checkin', ...mp() })).code === 401);
+
+  // ---- user (employee) auth gating (no DB needed) ----
+  check('GET /login -> 200', (await req({ method: 'GET', path: '/login' })).code === 200);
+  check('GET /api/user/me without session -> 401', (await req({ method: 'GET', path: '/api/user/me' })).code === 401);
+  check('POST /api/user/change-password without session -> 401', (await req({ method: 'POST', path: '/api/user/change-password', ...json({}) })).code === 401);
+  check('POST /api/user/login missing fields -> 400', (await req({ method: 'POST', path: '/api/user/login', ...json({}) })).code === 400);
 
   // ---- logout invalidates session ----
   await req({ method: 'POST', path: '/api/admin/logout', headers: { Cookie: cookie } });

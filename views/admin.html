@@ -166,6 +166,15 @@
       <div class="msg" id="addMsg"></div>
     </div>
     <div class="card">
+      <h2>Employee login — default password</h2>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Employees sign in the first time with this password (at <code>/login</code>), then set their own. Changing it only affects employees who haven't changed their password yet.</p>
+      <div class="row">
+        <div><label>Default password</label><input id="defPwIn" type="password" placeholder="e.g. Welcome@123"></div>
+        <button class="btn" id="defPwBtn">Save</button>
+      </div>
+      <div class="msg" id="defPwMsg"></div>
+    </div>
+    <div class="card">
       <h2>Bulk import</h2>
       <p style="font-size:13px;color:var(--muted);margin:0 0 8px;">One employee per line as <code>Associate ID, Name, Business Unit, Team, Campus</code> (comma or tab separated). Business Unit, Team and Campus are optional. A header row is ignored — you can paste straight from your sheet.</p>
       <textarea id="bulkText" rows="5" style="width:100%;" placeholder="135454, Priya Kumar, Engineering, Platform, Chennai&#10;135628, Arun Raj, Sales, Field, Bangalore"></textarea>
@@ -551,6 +560,16 @@ function flashMsg(id, text){
   clearTimeout(_msgTimers[id]);
   _msgTimers[id]=setTimeout(()=>{ el.textContent=''; }, 10000);
 }
+$('defPwBtn').onclick=async()=>{
+  const pw=$('defPwIn').value;
+  if((pw||'').length<6){ flashMsg('defPwMsg','Password must be at least 6 characters.'); return; }
+  try{
+    const res=await api('/api/admin/default-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+    const d=await res.json();
+    if(res.ok){ flashMsg('defPwMsg','Default password saved.'); $('defPwIn').value=''; }
+    else flashMsg('defPwMsg', d.error||'Could not save.');
+  }catch(e){}
+};
 $('addEmpBtn').onclick=async()=>{
   const empId=$('empIdIn').value.trim(), name=$('empNameIn').value.trim();
   const businessUnit=$('empBUIn').value.trim(), team=$('empTeamIn').value.trim(), campus=$('empCampusIn').value.trim();
@@ -614,7 +633,7 @@ function renderEmployees(){
         `<td>${e.businessUnit?esc(e.businessUnit):'<span class="missing">—</span>'}</td>`+
         `<td>${e.team?esc(e.team):'<span class="missing">—</span>'}</td>`+
         `<td>${e.campus?esc(e.campus):'<span class="missing">—</span>'}</td>`+
-        `<td style="text-align:right;white-space:nowrap;"><button class="mini" data-edit="${esc(e.empId)}">Edit</button> <button class="mini" data-exit="${esc(e.empId)}">Exit</button> <button class="mini danger" data-del="${esc(e.empId)}">Delete</button></td></tr>`;
+        `<td style="text-align:right;white-space:nowrap;"><button class="mini" data-edit="${esc(e.empId)}">Edit</button> <button class="mini" data-reset="${esc(e.empId)}">Reset PW</button> <button class="mini" data-exit="${esc(e.empId)}">Exit</button> <button class="mini danger" data-del="${esc(e.empId)}">Delete</button></td></tr>`;
     }
   }
   html+='</tbody></table>';
@@ -627,6 +646,7 @@ function renderEmployees(){
   el.querySelectorAll('button[data-edit]').forEach(b=>b.onclick=()=>{ editingEmpId=b.dataset.edit; renderEmployees(); });
   el.querySelectorAll('button[data-cancel]').forEach(b=>b.onclick=()=>{ editingEmpId=null; renderEmployees(); });
   el.querySelectorAll('button[data-save]').forEach(b=>b.onclick=()=>saveEmp(b.dataset.save));
+  el.querySelectorAll('button[data-reset]').forEach(b=>b.onclick=()=>resetPw(b.dataset.reset));
   el.querySelectorAll('button[data-exit]').forEach(b=>b.onclick=()=>exitEmp(b.dataset.exit));
   el.querySelectorAll('button[data-del]').forEach(b=>b.onclick=()=>delEmp(b.dataset.del));
   el.querySelectorAll('button[data-emppg]').forEach(b=>b.onclick=()=>{
@@ -653,6 +673,14 @@ async function delEmp(empId){
   setCounts(); renderEmployees(); renderExited();
   try{ const r=await api('/api/employees/'+encodeURIComponent(empId),{method:'DELETE'}); if(!r.ok) throw 0; }
   catch(e){ loadEmployees(); loadExited(); } // revert from server on failure
+}
+async function resetPw(empId){
+  if(!confirm('Reset password for '+empId+'?\nThey will sign in with the default password and be forced to set a new one.')) return;
+  try{
+    const res=await api('/api/employees/'+encodeURIComponent(empId)+'/reset-password',{method:'POST'});
+    if(res.ok) alert('Password reset for '+empId+'. They must log in with the default password and change it.');
+    else { const d=await res.json().catch(()=>({})); alert(d.error||'Reset failed.'); }
+  }catch(e){}
 }
 async function exitEmp(empId){
   if(!confirm('Move '+empId+' to the exit list? They will no longer appear in attendance. History is kept.')) return;

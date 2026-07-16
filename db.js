@@ -101,6 +101,43 @@ async function clearEmployees() {
   invalidateEmp();
 }
 
+// ---- user auth (per-employee password) ----
+async function getEmployeeAuth(empId) {
+  const id = String(empId || '').trim();
+  if (!id) return null;
+  const { data, error } = await client().from('employees')
+    .select('emp_id,name,business_unit,team,campus,exited,password_hash,must_change_password')
+    .eq('emp_id', id).maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    empId: data.emp_id, name: data.name, businessUnit: data.business_unit || '', team: data.team || '',
+    campus: data.campus || '', exited: !!data.exited,
+    passwordHash: data.password_hash || null, mustChange: data.must_change_password !== false
+  };
+}
+async function setEmployeePassword(empId, hash) {
+  const { error } = await client().from('employees')
+    .update({ password_hash: hash, must_change_password: false }).eq('emp_id', empId);
+  if (error) throw error;
+}
+async function resetEmployeePassword(empId) {
+  const { error } = await client().from('employees')
+    .update({ password_hash: null, must_change_password: true }).eq('emp_id', empId);
+  if (error) throw error;
+}
+
+// ---- key/value settings ----
+async function getSetting(key) {
+  const { data, error } = await client().from('settings').select('value').eq('key', key).maybeSingle();
+  if (error) throw error;
+  return data ? data.value : null;
+}
+async function setSetting(key, value) {
+  const { error } = await client().from('settings').upsert({ key, value }, { onConflict: 'key' });
+  if (error) throw error;
+}
+
 // ---- dropdown option lists (business_unit | team | campus) ----
 async function listOptions() {
   const { data, error } = await client().from('options').select('category,value').order('value');
@@ -220,5 +257,6 @@ module.exports = {
   insertRecord, insertRecords, listRecords, recordsByDate, getRecord, updateRecord, deleteRecord, clearRecords, clearRecordsByDate,
   statusByDate, setStatus,
   listOptions, addOptions, removeOption,
+  getEmployeeAuth, setEmployeePassword, resetEmployeePassword, getSetting, setSetting,
   uploadPhoto, downloadPhoto, ping
 };

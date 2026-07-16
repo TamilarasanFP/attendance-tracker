@@ -17,6 +17,15 @@ create table if not exists public.employees (
 -- Migrations for an existing table (safe to re-run):
 alter table public.employees add column if not exists exited    boolean not null default false;
 alter table public.employees add column if not exists exited_at timestamptz;
+alter table public.employees add column if not exists password_hash        text;
+alter table public.employees add column if not exists must_change_password  boolean not null default true;
+
+-- Key/value settings (holds the global default user password hash)
+create table if not exists public.settings (
+  key   text primary key,
+  value text
+);
+alter table public.settings enable row level security;
 -- rename old 'vertical' -> 'business_unit' only if that's still the situation
 do $$
 begin

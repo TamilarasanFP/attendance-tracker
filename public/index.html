@@ -9,23 +9,18 @@
   :root[data-theme="light"]{--bg:#f4f6f9;--card:#ffffff;--muted:#5b6572;--txt:#1e293b;--border:#e2e7ee;--field:#f3f5f9;}
   *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
   body{margin:0;color:var(--txt);min-height:100vh;
-    background:
-      radial-gradient(900px 420px at 85% -8%, rgba(241,81,55,.20), transparent 60%),
-      radial-gradient(680px 360px at 8% 2%, rgba(241,81,55,.10), transparent 55%),
-      var(--bg);
+    background:radial-gradient(900px 420px at 85% -8%, rgba(241,81,55,.20), transparent 60%),radial-gradient(680px 360px at 8% 2%, rgba(241,81,55,.10), transparent 55%),var(--bg);
     background-attachment:fixed;}
   header{padding:14px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:10;
     background:color-mix(in srgb, var(--card) 80%, transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);}
   .brandimg{height:30px;width:auto;display:block;background:#fff;padding:5px 10px;border-radius:9px;border:1px solid var(--border);}
   .htitle{font-size:14px;color:var(--muted);}
+  .who{font-size:13px;color:var(--txt);font-weight:600;}
   .hbtn{font-size:13px;color:var(--muted);text-decoration:none;border:1px solid var(--border);padding:7px 13px;border-radius:9px;background:transparent;cursor:pointer;transition:.15s;}
   .hbtn:hover{border-color:var(--acc);color:var(--txt);}
   main{max-width:500px;margin:0 auto;padding:34px 18px 56px;}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:22px;padding:28px;
-    box-shadow:0 30px 60px -30px rgba(0,0,0,.55);}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:22px;padding:28px;box-shadow:0 30px 60px -30px rgba(0,0,0,.55);}
   .hero{display:flex;align-items:center;gap:13px;margin-bottom:4px;}
-  .hero .dot{width:44px;height:44px;border-radius:13px;flex:none;display:flex;align-items:center;justify-content:center;font-size:22px;
-    background:linear-gradient(135deg,var(--acc),var(--acc2));box-shadow:0 12px 24px -10px rgba(241,81,55,.75);}
   .hero h1{font-size:21px;font-weight:800;margin:0;letter-spacing:-.3px;}
   .hero p{font-size:13px;color:var(--muted);margin:3px 0 0;}
   .noteban{font-size:12.5px;color:var(--muted);background:var(--field);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin:18px 0 4px;line-height:1.55;}
@@ -59,31 +54,40 @@
 <header>
   <img class="brandimg" src="/logo.svg" alt="FACE Prep">
   <span class="htitle">Attendance Check-in</span>
-  <div style="margin-left:auto;display:flex;gap:10px;">
+  <div style="margin-left:auto;display:flex;gap:12px;align-items:center;">
+    <span class="who" id="who"></span>
     <button id="themeBtn" class="hbtn">☀️ Light</button>
-    <a href="/admin/login" class="hbtn">Admin</a>
+    <button id="logoutBtn" class="hbtn">Log out</button>
   </div>
 </header>
 
 <main>
-  <div class="card">
-    <div class="hero">
-      <div>
-        <h1>Mark your attendance</h1>
-        <p>Enter your ID and take a photo — time &amp; location are captured automatically.</p>
-      </div>
-    </div>
-    <div class="noteban">Take your attendance photo with the camera. The current <b>date, time &amp; location</b> are stamped onto the photo and recorded — no manual entry.</div>
+  <!-- FIRST-LOGIN: change password -->
+  <div class="card" id="cpwCard" style="display:none;">
+    <div class="hero"><div><h1>Set a new password</h1><p>For your first login, please change your password.</p></div></div>
+    <label>Current password</label>
+    <input id="curPw" type="password" autocomplete="current-password">
+    <label>New password</label>
+    <input id="newPw" type="password" autocomplete="new-password">
+    <label>Confirm new password</label>
+    <input id="confPw" type="password" autocomplete="new-password">
+    <button class="primary" id="cpwBtn">Change password</button>
+    <div class="status" id="cpwStatus"></div>
+  </div>
 
-    <label>Associate ID</label>
-    <input id="empId" placeholder="e.g. 135454" autocomplete="off">
+  <!-- CHECK-IN -->
+  <div class="card" id="checkinCard" style="display:none;">
+    <div class="hero"><div><h1>Mark your attendance</h1><p>Take a photo — time &amp; location are captured automatically.</p></div></div>
+    <div class="noteban">Take your attendance photo with the camera. The current <b>date, time &amp; location</b> are stamped onto the photo and recorded.</div>
+
     <label>Name</label>
-    <input id="name" placeholder="Auto-filled from Associate ID" autocomplete="off" readonly>
-    <div class="hint" id="nameHint"></div>
+    <input id="idName" readonly>
+    <label>Associate ID</label>
+    <input id="idEmp" readonly>
     <label>Business Unit</label>
-    <input id="bu" placeholder="Auto-filled from Associate ID" autocomplete="off" readonly>
+    <input id="idBU" readonly>
     <label>Team</label>
-    <input id="team" placeholder="Auto-filled from Associate ID" autocomplete="off" readonly>
+    <input id="idTeam" readonly>
     <label>Entry type</label>
     <select id="type">
       <option value="start">Start of the day</option>
@@ -115,117 +119,94 @@
 
 <script>
 const $ = id => document.getElementById(id);
-// ---- theme (persisted, shared across pages) ----
 function applyTheme(t){
   document.documentElement.setAttribute('data-theme', t);
   try{ localStorage.setItem('theme', t); }catch(e){}
-  const b=document.getElementById('themeBtn'); if(b) b.textContent = t==='light' ? '🌙 Dark' : '☀️ Light';
+  const b=$('themeBtn'); if(b) b.textContent = t==='light' ? '🌙 Dark' : '☀️ Light';
 }
 (function(){ let t='dark'; try{ t=localStorage.getItem('theme')||'dark'; }catch(e){} applyTheme(t); })();
-document.getElementById('themeBtn').onclick=()=>{
-  const cur=document.documentElement.getAttribute('data-theme')==='light'?'light':'dark';
-  applyTheme(cur==='light'?'dark':'light');
+$('themeBtn').onclick=()=>{ const cur=document.documentElement.getAttribute('data-theme')==='light'?'light':'dark'; applyTheme(cur==='light'?'dark':'light'); };
+$('logoutBtn').onclick=async()=>{ try{ await fetch('/api/user/logout',{method:'POST'}); }catch(e){} location.href='/login'; };
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function setStatus(cls,msg){ const s=$('userStatus'); if(!msg){s.className='status';s.innerHTML='';return;} s.className='status show '+cls; s.innerHTML=msg; }
+function cpwStatus(cls,msg){ const s=$('cpwStatus'); if(!msg){s.className='status';s.innerHTML='';return;} s.className='status show '+cls; s.innerHTML=msg; }
+
+// ---- session / identity ----
+let ME=null;
+(async function loadMe(){
+  let res; try{ res=await fetch('/api/user/me'); }catch(e){ location.href='/login'; return; }
+  if(res.status===401){ location.href='/login'; return; }
+  ME=await res.json();
+  $('who').textContent=ME.name ? ('Hi, '+ME.name) : '';
+  $('idName').value=ME.name||''; $('idEmp').value=ME.empId||''; $('idBU').value=ME.businessUnit||''; $('idTeam').value=ME.team||'';
+  if(ME.mustChange){ $('cpwCard').style.display=''; $('checkinCard').style.display='none'; }
+  else{ $('cpwCard').style.display='none'; $('checkinCard').style.display=''; }
+})();
+
+$('cpwBtn').onclick=async()=>{
+  const cur=$('curPw').value, np=$('newPw').value, cp=$('confPw').value;
+  if(np.length<6){ cpwStatus('err','New password must be at least 6 characters.'); return; }
+  if(np!==cp){ cpwStatus('err','New passwords do not match.'); return; }
+  $('cpwBtn').disabled=true; cpwStatus('busy','Saving…');
+  try{
+    const res=await fetch('/api/user/change-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPassword:cur,newPassword:np})});
+    const d=await res.json();
+    if(!res.ok){ cpwStatus('err',d.error||'Could not change password.'); $('cpwBtn').disabled=false; return; }
+    cpwStatus('ok','Password changed. Loading check-in…');
+    setTimeout(()=>location.reload(), 700);
+  }catch(e){ cpwStatus('err','Network error.'); $('cpwBtn').disabled=false; }
 };
+
+// ---- camera + location + capture ----
 let stream=null, capturedBlob=null, capturedAt=null, capturedLat=null, capturedLng=null;
 const video=$('video'), shot=$('shot');
-function p(n){ return String(n).padStart(2,'0'); }
-// stamp the photo in India time (Asia/Kolkata), matching what the server records
 function istStamp(d){
-  const x=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hourCycle:'h23',
-    year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'})
+  const x=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'})
     .formatToParts(d).reduce((o,pp)=>(o[pp.type]=pp.value,o),{});
   return `${x.year}-${x.month}-${x.day} ${x.hour}:${x.minute}:${x.second} IST`;
 }
-function setStatus(cls,msg){ const s=$('userStatus'); if(!msg){s.className='status';s.innerHTML='';return;} s.className='status show '+cls; s.innerHTML=msg; }
-
-// Name is read-only — always filled automatically from the roster by Associate ID.
-let lookupTimer=null;
-$('empId').oninput=()=>{
-  clearTimeout(lookupTimer);
-  const id=$('empId').value.trim();
-  $('name').value=''; $('bu').value=''; $('team').value=''; $('nameHint').textContent='';
-  if(!id) return;
-  lookupTimer=setTimeout(async()=>{
-    try{
-      const d=await (await fetch('/api/lookup/'+encodeURIComponent(id))).json();
-      if(d && d.name){
-        $('name').value=d.name;
-        $('bu').value=d.businessUnit||'';
-        $('team').value=d.team||'';
-        $('nameHint').textContent='Details auto-filled from roster.';
-      } else { $('nameHint').textContent='No employee found for this Associate ID.'; }
-    }catch(e){ $('nameHint').textContent=''; }
-  },350);
-};
-
 async function startCamera(){
   setStatus('','');
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
-  const facing=$('camFacing').value;
   try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing}},audio:false});
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:$('camFacing').value}},audio:false});
     video.srcObject=stream;
-    $('camPlaceholder').style.display='none';
-    shot.style.display='none'; video.style.display='block';
-    $('captureBtn').disabled=false; $('retakeBtn').disabled=true;
-    capturedBlob=null; $('submitBtn').disabled=true;
-  }catch(e){
-    setStatus('err','Could not open camera: '+e.message+'. Check permissions and that you are on localhost/HTTPS.');
-  }
+    $('camPlaceholder').style.display='none'; shot.style.display='none'; video.style.display='block';
+    $('captureBtn').disabled=false; $('retakeBtn').disabled=true; capturedBlob=null; $('submitBtn').disabled=true;
+  }catch(e){ setStatus('err','Could not open camera: '+e.message+'. Check permissions and that you are on localhost/HTTPS.'); }
 }
 $('openBtn').onclick=startCamera;
-// switching front/back while the camera is live re-opens with the chosen lens
 $('camFacing').onchange=()=>{ if(stream) startCamera(); };
-
-function getLocation(){
-  return new Promise((resolve,reject)=>{
-    if(!navigator.geolocation) return reject(new Error('Geolocation not supported by this browser.'));
-    navigator.geolocation.getCurrentPosition(resolve, reject, {enableHighAccuracy:true, timeout:12000, maximumAge:0});
-  });
-}
+function getLocation(){ return new Promise((resolve,reject)=>{ if(!navigator.geolocation) return reject(new Error('Geolocation not supported.')); navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:12000,maximumAge:0}); }); }
 $('captureBtn').onclick=async()=>{
   if(!stream) return;
-  $('captureBtn').disabled=true;
-  setStatus('busy','Getting your location… allow the permission prompt.');
-  let pos;
-  try{ pos=await getLocation(); }
-  catch(e){
-    setStatus('err','Location is required to check in. Enable location access for this site, then tap Capture again.');
-    $('captureBtn').disabled=false; return;
-  }
+  $('captureBtn').disabled=true; setStatus('busy','Getting your location… allow the permission prompt.');
+  let pos; try{ pos=await getLocation(); }
+  catch(e){ setStatus('err','Location is required to check in. Enable location access, then tap Capture again.'); $('captureBtn').disabled=false; return; }
   capturedLat=pos.coords.latitude; capturedLng=pos.coords.longitude;
-
   const w=video.videoWidth||640, h=video.videoHeight||480;
-  shot.width=w; shot.height=h;
-  const ctx=shot.getContext('2d');
-  ctx.drawImage(video,0,0,w,h);
+  shot.width=w; shot.height=h; const ctx=shot.getContext('2d'); ctx.drawImage(video,0,0,w,h);
   const now=new Date();
-  const line1=istStamp(now);
-  const line2=`Lat ${capturedLat.toFixed(5)}, Lng ${capturedLng.toFixed(5)}`;
-  const fsz=Math.max(15, Math.round(w*0.032));
-  ctx.font=`bold ${fsz}px monospace`; ctx.textBaseline='top';
+  const line1=istStamp(now), line2=`Lat ${capturedLat.toFixed(5)}, Lng ${capturedLng.toFixed(5)}`;
+  const fsz=Math.max(15, Math.round(w*0.032)); ctx.font=`bold ${fsz}px monospace`; ctx.textBaseline='top';
   const bw=Math.max(ctx.measureText(line1).width, ctx.measureText(line2).width);
   ctx.fillStyle='rgba(0,0,0,0.58)'; ctx.fillRect(10, h-2*fsz-26, bw+20, 2*fsz+22);
-  ctx.fillStyle='#fff';
-  ctx.fillText(line1, 20, h-2*fsz-19);
-  ctx.fillText(line2, 20, h-fsz-13);
+  ctx.fillStyle='#fff'; ctx.fillText(line1, 20, h-2*fsz-19); ctx.fillText(line2, 20, h-fsz-13);
   capturedAt=now.toISOString();
   shot.toBlob(b=>{ capturedBlob=b; $('submitBtn').disabled=false; }, 'image/jpeg', 0.9);
-  video.style.display='none'; shot.style.display='block';
-  $('retakeBtn').disabled=false;
+  video.style.display='none'; shot.style.display='block'; $('retakeBtn').disabled=false;
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
   setStatus('ok', `📍 Location captured: <b>${capturedLat.toFixed(5)}, ${capturedLng.toFixed(5)}</b>. Now submit.`);
 };
-
 $('retakeBtn').onclick=()=>{ capturedBlob=null; capturedLat=null; capturedLng=null; $('submitBtn').disabled=true; $('openBtn').click(); };
 
 $('submitBtn').onclick=async()=>{
-  const name=$('name').value.trim(), empId=$('empId').value.trim(), type=$('type').value;
-  if(!name||!empId){ setStatus('err','Enter your name and employee ID.'); return; }
+  const type=$('type').value;
   if(!capturedBlob){ setStatus('err','Capture a photo first.'); return; }
   if(capturedLat==null||capturedLng==null){ setStatus('err','Location missing — capture again with location enabled.'); return; }
   const fd=new FormData();
-  fd.append('name',name); fd.append('empId',empId); fd.append('type',type);
+  fd.append('type',type);
   fd.append('captureTime', capturedAt||new Date().toISOString());
   fd.append('lat', capturedLat); fd.append('lng', capturedLng);
   fd.append('photo', capturedBlob, 'capture.jpg');
@@ -233,15 +214,15 @@ $('submitBtn').onclick=async()=>{
   try{
     const res=await fetch('/api/checkin',{method:'POST',body:fd});
     const data=await res.json();
+    if(res.status===401){ location.href='/login'; return; }
     if(!res.ok){ setStatus('err', data.error||'Something went wrong.'); $('submitBtn').disabled=false; }
     else{
-      setStatus('ok',`✅ Recorded <b>${type==='start'?'Start of day':'End of day'}</b> for <b>${esc(name)}</b> (${esc(empId)}).<br>Date: <b>${esc(data.date)}</b> &nbsp; time: <b>${esc(data.time)}</b>`);
+      setStatus('ok',`✅ Recorded <b>${type==='start'?'Start of day':'End of day'}</b> for <b>${esc(ME.name)}</b> (${esc(ME.empId)}).<br>Date: <b>${esc(data.date)}</b> &nbsp; time: <b>${esc(data.time)}</b>`);
       capturedBlob=null; $('captureBtn').disabled=true; $('retakeBtn').disabled=true;
       $('camPlaceholder').style.display='block'; shot.style.display='none';
     }
   }catch(e){ setStatus('err','Network error: '+e.message); $('submitBtn').disabled=false; }
 };
-function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 </script>
 </body>
 </html>

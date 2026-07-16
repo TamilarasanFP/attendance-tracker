@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Employee Login</title>
+<style>
+  :root{--bg:#0f172a;--card:#1e293b;--muted:#94a3b8;--txt:#e2e8f0;--acc:#F15137;--acc2:#ff7a5c;--warn:#f59e0b;--border:#334155;--field:#0b1424;}
+  :root[data-theme="light"]{--bg:#f4f6f9;--card:#ffffff;--muted:#5b6572;--txt:#1e293b;--border:#e2e7ee;--field:#f3f5f9;}
+  *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  body{margin:0;color:var(--txt);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
+    background:radial-gradient(900px 420px at 80% -8%, rgba(241,81,55,.20), transparent 60%), var(--bg);}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px;width:100%;max-width:380px;
+    box-shadow:0 30px 60px -30px rgba(0,0,0,.55);}
+  .logo{display:block;height:30px;margin:0 auto 18px;background:#fff;padding:5px 10px;border-radius:9px;border:1px solid var(--border);width:fit-content;}
+  h1{font-size:20px;margin:0 0 4px;text-align:center;}
+  p.sub{color:var(--muted);font-size:13px;margin:0 0 20px;text-align:center;}
+  label{display:block;font-size:12px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;}
+  input{width:100%;padding:12px 13px;border-radius:11px;border:1px solid var(--border);background:var(--field);color:var(--txt);font-size:15px;transition:.15s;}
+  input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(241,81,55,.20);}
+  button{margin-top:20px;width:100%;padding:14px;border:none;border-radius:12px;color:#fff;font-weight:800;font-size:15px;cursor:pointer;
+    background:linear-gradient(135deg,var(--acc),var(--acc2));box-shadow:0 12px 26px -12px rgba(241,81,55,.7);}
+  button:disabled{opacity:.6;cursor:not-allowed;}
+  .err{margin-top:14px;font-size:14px;color:#fcd34d;background:rgba(245,158,11,.12);border:1px solid var(--warn);border-radius:10px;padding:10px 12px;display:none;}
+  .err.show{display:block;}
+  a.admin{display:block;text-align:center;margin-top:16px;font-size:12px;color:var(--muted);text-decoration:none;}
+</style>
+</head>
+<body>
+  <form class="card" id="f">
+    <img class="logo" src="/logo.svg" alt="FACE Prep">
+    <h1>Employee Login</h1>
+    <p class="sub">Sign in with your Employee ID and password.</p>
+    <label>Employee ID</label>
+    <input id="empId" autocomplete="username" autofocus>
+    <label>Password</label>
+    <input id="pw" type="password" autocomplete="current-password">
+    <button type="submit" id="btn">Sign in</button>
+    <div class="err" id="err"></div>
+    <a class="admin" href="/admin/login">Admin login →</a>
+  </form>
+<script>
+  (function(){ let t='dark'; try{ t=localStorage.getItem('theme')||'dark'; }catch(e){} document.documentElement.setAttribute('data-theme',t); })();
+  const err=document.getElementById('err'), btn=document.getElementById('btn');
+  document.getElementById('f').onsubmit=async(e)=>{
+    e.preventDefault(); err.className='err'; btn.disabled=true; btn.textContent='Signing in…';
+    try{
+      const res=await fetch('/api/user/login',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({empId:document.getElementById('empId').value.trim(),password:document.getElementById('pw').value})});
+      const d=await res.json();
+      if(res.ok){ window.location.href='/'; return; }
+      err.textContent=d.error||'Login failed.'; err.className='err show';
+    }catch(e){ err.textContent='Network error.'; err.className='err show'; }
+    btn.disabled=false; btn.textContent='Sign in';
+  };
+</script>
+</body>
+</html>

@@ -10,6 +10,7 @@ const compression = require('compression');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const XLSX = require('xlsx');
+const bcrypt = require('bcryptjs');
 const db = require('./db');
 
 const app = express();
@@ -124,6 +125,36 @@ function requireAdmin(req, res, next) {
   return res.redirect('/admin/login');
 }
 
+// ---- employee (user) sessions ----
+const userSessions = new Map(); // token -> { empId, mustChange, exp }
+const DEFAULT_USER_PASSWORD = 'Welcome@123'; // seeded default until admin sets one
+function newUserSession(empId, mustChange) {
+  const token = crypto.randomBytes(24).toString('hex');
+  userSessions.set(token, { empId, mustChange: !!mustChange, exp: Date.now() + SESSION_TTL_MS });
+  return token;
+}
+function getUserSession(req) {
+  const t = getCookie(req, 'user_session');
+  if (!t || !userSessions.has(t)) return null;
+  const s = userSessions.get(t);
+  if (Date.now() > s.exp) { userSessions.delete(t); return null; }
+  return { token: t, ...s };
+}
+function requireUser(req, res, next) {
+  const s = getUserSession(req);
+  if (!s) return res.status(401).json({ error: 'Not logged in.' });
+  res.setHeader('Cache-Control', 'no-store');
+  req.user = s;
+  next();
+}
+setInterval(() => { const now = Date.now(); for (const [t, s] of userSessions) if (now > s.exp) userSessions.delete(t); }, 60 * 60 * 1000).unref();
+// The effective default password: admin-set hash in settings, else the seeded constant.
+async function defaultPasswordValid(password) {
+  const hash = await db.getSetting('default_user_password');
+  if (hash) return bcrypt.compare(String(password), hash);
+  return String(password) === DEFAULT_USER_PASSWORD;
+}
+
 // ---- uploads held in memory (then pushed to Supabase Storage) ----
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -160,7 +191,10 @@ function workedLabel(start, end) {
 
 app.use(compression());                 // gzip JSON/HTML/CSS responses
 app.use(express.json({ limit: '2mb' })); // bounded body (bulk import can be sizeable)
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h', etag: true }));
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '1h', etag: true,
+  setHeaders: (res, p) => { if (p.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache'); } // always revalidate the check-in page
+}));
 const VIEWS = path.join(__dirname, 'views');
 
 app.use('/api/', generalLimiter);        // volumetric protection (photos excluded)
@@ -193,18 +227,82 @@ app.post('/api/admin/logout', (req, res) => {
 });
 app.get('/admin', requireAdmin, (req, res) => res.sendFile(path.join(VIEWS, 'admin.html')));
 
-// ---- CHECK-IN (public) ----
-app.post('/api/checkin', upload.single('photo'), async (req, res) => {
+// ---- USER (employee) AUTH ----
+app.get('/login', (req, res) => res.sendFile(path.join(VIEWS, 'user-login.html')));
+
+app.post('/api/user/login', publicLimiter, async (req, res) => {
   try {
-    let name = (req.body.name || '').trim();
     const empId = (req.body.empId || '').trim();
+    const password = String(req.body.password || '');
+    if (!empId || !password) return res.status(400).json({ error: 'Employee ID and password are required.' });
+    const emp = await db.getEmployeeAuth(empId);
+    if (!emp || emp.exited) return res.status(401).json({ error: 'Invalid Employee ID or password.' });
+    let ok, mustChange;
+    if (emp.passwordHash) { ok = await bcrypt.compare(password, emp.passwordHash); mustChange = emp.mustChange; }
+    else { ok = await defaultPasswordValid(password); mustChange = true; } // first login on default
+    if (!ok) { audit(req, `user login FAIL ${empId}`); return res.status(401).json({ error: 'Invalid Employee ID or password.' }); }
+    const token = newUserSession(emp.empId, mustChange);
+    res.setHeader('Set-Cookie', `user_session=${token}; ${cookieFlags}; Max-Age=${SESSION_TTL_MS / 1000}`);
+    audit(req, `user login OK ${empId}`);
+    res.json({ ok: true, mustChange, name: emp.name });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Login failed.' }); }
+});
+
+app.post('/api/user/logout', (req, res) => {
+  const s = getUserSession(req);
+  if (s) userSessions.delete(s.token);
+  res.setHeader('Set-Cookie', `user_session=; ${cookieFlags}; Max-Age=0`);
+  res.json({ ok: true });
+});
+
+app.get('/api/user/me', requireUser, async (req, res) => {
+  try {
+    const emp = await db.findEmployee(req.user.empId);
+    if (!emp) return res.status(401).json({ error: 'Not found.' });
+    res.json({ empId: emp.empId, name: emp.name, businessUnit: emp.businessUnit, team: emp.team, campus: emp.campus, mustChange: req.user.mustChange });
+  } catch (err) { res.status(500).json({ error: 'Failed.' }); }
+});
+
+app.post('/api/user/change-password', requireUser, async (req, res) => {
+  try {
+    const current = String(req.body.currentPassword || '');
+    const next = String(req.body.newPassword || '');
+    if (next.length < 6 || next.length > 100) return res.status(400).json({ error: 'New password must be 6–100 characters.' });
+    const emp = await db.getEmployeeAuth(req.user.empId);
+    if (!emp) return res.status(401).json({ error: 'Not found.' });
+    const currentOk = emp.passwordHash ? await bcrypt.compare(current, emp.passwordHash) : await defaultPasswordValid(current);
+    if (!currentOk) return res.status(401).json({ error: 'Current password is incorrect.' });
+    const hash = await bcrypt.hash(next, 10);
+    await db.setEmployeePassword(req.user.empId, hash);
+    userSessions.get(req.user.token).mustChange = false; // update live session
+    audit(req, `user password change ${req.user.empId}`);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Could not change password.' }); }
+});
+
+// ---- ADMIN: set the global default user password ----
+app.post('/api/admin/default-password', requireAdmin, async (req, res) => {
+  try {
+    const pw = String(req.body.password || '');
+    if (pw.length < 6 || pw.length > 100) return res.status(400).json({ error: 'Default password must be 6–100 characters.' });
+    const hash = await bcrypt.hash(pw, 10);
+    await db.setSetting('default_user_password', hash);
+    audit(req, 'set default user password');
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Could not set default password.' }); }
+});
+
+// ---- CHECK-IN (public) ----
+app.post('/api/checkin', requireUser, upload.single('photo'), async (req, res) => {
+  try {
+    if (req.user.mustChange) return res.status(403).json({ error: 'Please change your password before checking in.' });
+    const empId = req.user.empId;                 // identity from the session, not the client
     const type = req.body.type === 'end' ? 'end' : 'start';
-    if (!name || !empId) return res.status(400).json({ error: 'Name and Employee ID are required.' });
-    if (tooLong(name, empId)) return res.status(400).json({ error: 'Name/ID too long.' });
     if (!req.file) return res.status(400).json({ error: 'Capture a photo with the camera before submitting.' });
 
     const rosterEmp = await db.findEmployee(empId);
-    if (rosterEmp) name = rosterEmp.name; // roster name is authoritative
+    if (!rosterEmp) return res.status(400).json({ error: 'Your employee record was not found. Contact the admin.' });
+    const name = rosterEmp.name;                   // roster name is authoritative
 
     // Location is required.
     const lat = parseFloat(req.body.lat), lng = parseFloat(req.body.lng);
@@ -371,6 +469,16 @@ app.post('/api/employees/:empId/exit', requireAdmin, async (req, res) => {
 app.post('/api/employees/:empId/restore', requireAdmin, async (req, res) => {
   try { await db.setExited(req.params.empId, false); audit(req, `restore ${req.params.empId}`); res.json({ ok: true }); }
   catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/employees/:empId/reset-password', requireAdmin, async (req, res) => {
+  try {
+    const empId = req.params.empId;
+    if (!(await db.getEmployeeAuth(empId))) return res.status(404).json({ error: 'Employee not found.' });
+    await db.resetEmployeePassword(empId);
+    for (const [t, s] of userSessions) if (s.empId === empId) userSessions.delete(t); // force re-login
+    audit(req, `reset password ${empId}`);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.delete('/api/employees', requireAdmin, async (req, res) => {
   try { await db.clearEmployees(); audit(req, 'clear ROSTER'); res.json({ ok: true }); }
