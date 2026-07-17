@@ -18,7 +18,18 @@
   .who{font-size:13px;color:var(--txt);font-weight:600;}
   .hbtn{font-size:13px;color:var(--muted);text-decoration:none;border:1px solid var(--border);padding:7px 13px;border-radius:9px;background:transparent;cursor:pointer;transition:.15s;}
   .hbtn:hover{border-color:var(--acc);color:var(--txt);}
-  main{max-width:500px;margin:0 auto;padding:34px 18px 56px;}
+  main{max-width:1200px;margin:0 auto;padding:34px 24px 56px;}
+  .form2{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-top:6px;align-items:stretch;}
+  .form2>div>label:first-child{margin-top:8px;}
+  #helpdeskCard .form2{align-items:start;}
+  .pager{display:flex;align-items:center;gap:12px;margin-top:14px;font-size:13px;color:var(--muted);}
+  .pager button{width:auto;padding:8px 12px;font-size:13px;cursor:pointer;background:var(--field);border:1px solid var(--border);border-radius:9px;color:var(--txt);}
+  .pager button[disabled]{opacity:.4;cursor:not-allowed;}
+  /* attendance: camera column fills to match the identity column height */
+  #checkinCard .form2>div:last-child{display:flex;flex-direction:column;}
+  #checkinCard .camwrap{flex:1 1 auto;aspect-ratio:auto;max-height:none;min-height:150px;}
+  @media(max-width:720px){ .form2{grid-template-columns:1fr;gap:0;} }
+  #cpwCard{max-width:520px;margin-left:auto;margin-right:auto;}
   .card{background:var(--card);border:1px solid var(--border);border-radius:22px;padding:28px;box-shadow:0 30px 60px -30px rgba(0,0,0,.55);}
   .hero{display:flex;align-items:center;gap:13px;margin-bottom:4px;}
   .hero h1{font-size:21px;font-weight:800;margin:0;letter-spacing:-.3px;}
@@ -27,12 +38,17 @@
   label{display:block;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:16px 0 7px;}
   input,select{width:100%;padding:12px 13px;border-radius:11px;border:1px solid var(--border);background:var(--field);color:var(--txt);font-size:15px;transition:.15s;}
   input:focus,select:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(241,81,55,.20);}
-  input[readonly]{opacity:.8;}
+  /* auto-filled, read-only fields: clearly locked */
+  input[readonly]{background:transparent;border:1px dashed var(--border);color:var(--muted);cursor:default;font-weight:600;}
+  input[readonly]:focus{border-color:var(--border);box-shadow:none;}
+  /* fields the employee must choose: accent cue */
+  #type{border-color:var(--acc);background:rgba(241,81,55,.06);font-weight:600;}
+  .autoNote{font-size:11px;color:var(--muted);margin:-2px 0 2px;letter-spacing:.02em;text-transform:none;font-weight:600;}
   button.primary{margin-top:22px;width:100%;padding:15px;border:none;border-radius:13px;color:#fff;font-weight:800;font-size:15.5px;cursor:pointer;letter-spacing:.02em;
     background:linear-gradient(135deg,var(--acc),var(--acc2));box-shadow:0 14px 30px -12px rgba(241,81,55,.75);transition:.15s;}
   button.primary:hover:not(:disabled){transform:translateY(-1px);}
   button.primary:disabled{opacity:.5;cursor:not-allowed;box-shadow:none;}
-  .camwrap{margin-top:8px;position:relative;background:#0a0f1a;border-radius:16px;overflow:hidden;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);}
+  .camwrap{margin-top:8px;position:relative;background:#0a0f1a;border-radius:16px;overflow:hidden;aspect-ratio:4/3;max-height:300px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);}
   video,canvas.shot{width:100%;height:100%;object-fit:cover;display:none;}
   .camwrap .placeholder{color:#64748b;font-size:13px;text-align:center;padding:20px;display:flex;flex-direction:column;gap:8px;align-items:center;}
   .camwrap .placeholder .ic{font-size:34px;opacity:.55;}
@@ -48,12 +64,57 @@
   .status.err{background:rgba(245,158,11,.12);border:1px solid var(--warn);color:#fcd34d;}
   .status.busy{background:rgba(241,81,55,.10);border:1px solid var(--acc);color:#fca5a5;}
   .foot{text-align:center;font-size:12px;color:var(--muted);margin-top:22px;}
+  .unav{display:flex;gap:8px;}
+  .utab{padding:7px 15px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:13px;font-weight:600;}
+  .utab.active{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;border-color:transparent;}
+  textarea{width:100%;padding:12px 13px;border-radius:11px;border:1px solid var(--border);background:var(--field);color:var(--txt);font-size:15px;font-family:inherit;}
+  textarea:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(241,81,55,.20);}
+  .tk{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--field);}
+  .tk .th{display:flex;justify-content:space-between;gap:10px;align-items:center;}
+  .tk .ts{font-weight:700;font-size:14px;}
+  .tk .tm{font-size:12px;color:var(--muted);margin-top:2px;}
+  .tk .tmsg{font-size:13px;margin:6px 0;white-space:pre-wrap;line-height:1.5;}
+  .tk .tr{font-size:13px;background:rgba(34,197,94,.08);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-top:6px;line-height:1.5;}
+  .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;}
+  .badge.open{background:rgba(245,158,11,.16);color:#fcd34d;}
+  .badge.on_hold{background:rgba(148,163,184,.2);color:#cbd5e1;}
+  .badge.resolved{background:rgba(34,197,94,.16);color:#86efac;}
+  .uthread{display:flex;flex-direction:column;gap:6px;margin:8px 0;}
+  .ubub{font-size:13px;padding:8px 11px;border-radius:9px;line-height:1.5;max-width:88%;white-space:pre-wrap;}
+  .ubub .uwho{font-size:11px;color:var(--muted);display:block;margin-bottom:2px;}
+  .ubub.user{background:var(--card);border:1px solid var(--border);align-self:flex-start;}
+  .ubub.admin{background:rgba(59,130,246,.10);border:1px solid var(--border);align-self:flex-end;}
+  .tbanner{border-radius:12px;padding:13px 16px;font-size:14px;border:1px solid var(--border);margin-bottom:14px;}
+  .tbanner.present{background:rgba(34,197,94,.10);border-color:#22c55e;color:#86efac;}
+  .tbanner.partial{background:rgba(245,158,11,.10);border-color:#f59e0b;color:#fcd34d;}
+  .tbanner.absent{background:rgba(239,68,68,.10);border-color:#ef4444;color:#fca5a5;}
+  .tbanner.permission,.tbanner.normal_leave{background:rgba(59,130,246,.10);border-color:#3b82f6;color:#93c5fd;}
+  .monthnav{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+  .mnbtn{border:1px solid var(--border);background:transparent;color:var(--txt);border-radius:8px;cursor:pointer;font-size:15px;line-height:1;padding:5px 12px;}
+  .mnbtn:hover:not(:disabled){border-color:var(--acc);color:var(--acc);}
+  .mnbtn:disabled{opacity:.4;cursor:not-allowed;}
+  .mstats{display:flex;flex-wrap:wrap;gap:10px;}
+  .mstat{background:var(--field);border:1px solid var(--border);border-radius:10px;padding:10px 14px;min-width:96px;}
+  .mstat .n{font-size:20px;font-weight:700;line-height:1;}
+  .mstat .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-top:5px;}
+  .atable{width:100%;border-collapse:collapse;font-size:13px;}
+  .atable th,.atable td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);}
+  .atable th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em;}
+  .sbadge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;}
+  .sbadge.present{background:rgba(34,197,94,.15);color:#86efac;}
+  .sbadge.partial{background:rgba(245,158,11,.15);color:#fcd34d;}
+  .sbadge.absent{background:rgba(239,68,68,.15);color:#fca5a5;}
+  .sbadge.permission{background:rgba(59,130,246,.15);color:#93c5fd;}
+  .sbadge.normal_leave{background:rgba(168,85,247,.15);color:#d8b4fe;}
 </style>
 </head>
 <body>
 <header>
   <img class="brandimg" src="/logo.svg" alt="FACE Prep">
-  <span class="htitle">Attendance Check-in</span>
+  <div class="unav" id="unav" style="display:none;">
+    <button class="utab active" data-uview="attendance">Attendance</button>
+    <button class="utab" data-uview="helpdesk">Helpdesk</button>
+  </div>
   <div style="margin-left:auto;display:flex;gap:12px;align-items:center;">
     <span class="who" id="who"></span>
     <button id="themeBtn" class="hbtn">☀️ Light</button>
@@ -75,44 +136,89 @@
     <div class="status" id="cpwStatus"></div>
   </div>
 
-  <!-- CHECK-IN -->
-  <div class="card" id="checkinCard" style="display:none;">
+  <!-- ATTENDANCE -->
+  <div id="attendanceView" style="display:none;">
+  <div class="card" id="checkinCard">
     <div class="hero"><div><h1>Mark your attendance</h1><p>Take a photo — time &amp; location are captured automatically.</p></div></div>
     <div class="noteban">Take your attendance photo with the camera. The current <b>date, time &amp; location</b> are stamped onto the photo and recorded.</div>
 
-    <label>Name</label>
-    <input id="idName" readonly>
-    <label>Associate ID</label>
-    <input id="idEmp" readonly>
-    <label>Business Unit</label>
-    <input id="idBU" readonly>
-    <label>Team</label>
-    <input id="idTeam" readonly>
-    <label>Entry type</label>
-    <select id="type">
-      <option value="start">Start of the day</option>
-      <option value="end">End of the day</option>
-    </select>
-
-    <label>Camera</label>
-    <select id="camFacing">
-      <option value="user">Front camera (selfie)</option>
-      <option value="environment">Back camera</option>
-    </select>
-    <div class="camwrap" style="margin-top:8px;">
-      <div class="placeholder" id="camPlaceholder"><span class="ic">📷</span>Camera is off. Tap “Open camera” to start.</div>
-      <video id="video" autoplay playsinline muted></video>
-      <canvas id="shot" class="shot"></canvas>
+    <div class="form2">
+      <div>
+        <div class="autoNote">🔒 Auto-filled from your profile</div>
+        <label>Name</label>
+        <input id="idName" readonly>
+        <label>Associate ID</label>
+        <input id="idEmp" readonly>
+        <label>Business Unit</label>
+        <input id="idBU" readonly>
+        <label>Team</label>
+        <input id="idTeam" readonly>
+        <label>Entry type <span style="color:var(--acc);">— choose one</span></label>
+        <select id="type">
+          <option value="start">Start of the day</option>
+          <option value="end">End of the day</option>
+        </select>
+      </div>
+      <div>
+        <label>Camera</label>
+        <select id="camFacing">
+          <option value="user">Front camera (selfie)</option>
+          <option value="environment">Back camera</option>
+        </select>
+        <div class="camwrap" style="margin-top:8px;">
+          <div class="placeholder" id="camPlaceholder"><span class="ic">📷</span>Camera is off. Tap “Open camera” to start.</div>
+          <video id="video" autoplay playsinline muted></video>
+          <canvas id="shot" class="shot"></canvas>
+        </div>
+        <div class="btnrow">
+          <button id="openBtn">Open camera</button>
+          <button id="captureBtn" class="accent" disabled>Capture photo</button>
+          <button id="retakeBtn" disabled>Retake</button>
+        </div>
+        <div class="hint">Live camera &amp; location need <b>localhost or HTTPS</b>. Allow the prompts when asked.</div>
+        <button class="primary" id="submitBtn" disabled>Submit attendance</button>
+        <div class="status" id="userStatus"></div>
+      </div>
     </div>
-    <div class="btnrow">
-      <button id="openBtn">Open camera</button>
-      <button id="captureBtn" class="accent" disabled>Capture photo</button>
-      <button id="retakeBtn" disabled>Retake</button>
+  </div>
+  <div class="card" id="myAttnCard" style="margin-top:18px;">
+    <div class="hero"><div><h1>My attendance</h1><p>Your record — today’s status and month-by-month history.</p></div></div>
+    <div id="todayBanner"></div>
+    <div class="monthnav">
+      <button id="attnPrev" class="mnbtn">‹</button>
+      <b id="attnMonthLabel"></b>
+      <button id="attnNext" class="mnbtn">›</button>
     </div>
-    <div class="hint">Live camera &amp; location need <b>localhost or HTTPS</b>. Allow the prompts when asked.</div>
+    <div id="monthSummary" class="mstats"></div>
+    <div id="attnHistory" style="margin-top:16px;"></div>
+  </div>
+  </div>
 
-    <button class="primary" id="submitBtn" disabled>Submit attendance</button>
-    <div class="status" id="userStatus"></div>
+  <!-- HELPDESK -->
+  <div class="card" id="helpdeskCard" style="display:none;">
+    <div class="form2">
+      <div>
+        <div class="hero" style="margin:0 0 4px;"><div><h1>Helpdesk</h1><p>Raise a query — the admin team will respond here.</p></div></div>
+        <label>Category</label>
+        <select id="hdCategory"><option>IT</option><option>HR</option><option>Payroll</option><option>Attendance</option><option selected>Other</option></select>
+        <label>Priority</label>
+        <select id="hdPriority"><option>Low</option><option selected>Medium</option><option>High</option></select>
+        <label>Subject</label>
+        <input id="hdSubject" placeholder="Short summary" maxlength="150">
+        <label>Message</label>
+        <textarea id="hdMessage" placeholder="Describe your issue…" style="min-height:160px;" maxlength="2000"></textarea>
+        <button class="primary" id="hdSubmit">Submit ticket</button>
+        <div class="status" id="hdStatus"></div>
+      </div>
+      <div>
+        <div class="hero" style="margin:0 0 4px;"><div><h1>My tickets</h1><p>Your queries and replies from the admin team.</p></div></div>
+        <div id="hdMine"><div style="color:var(--muted);font-size:13px;">Loading…</div></div>
+        <div class="pager" id="hdMinePager" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+  <div class="card" id="noFeatures" style="display:none;text-align:center;color:var(--muted);">
+    No sections are currently enabled for your account. Please contact the admin.
   </div>
   <div class="foot">Powered by FACE Prep</div>
 </main>
@@ -140,9 +246,129 @@ let ME=null;
   ME=await res.json();
   $('who').textContent=ME.name ? ('Hi, '+ME.name) : '';
   $('idName').value=ME.name||''; $('idEmp').value=ME.empId||''; $('idBU').value=ME.businessUnit||''; $('idTeam').value=ME.team||'';
-  if(ME.mustChange){ $('cpwCard').style.display=''; $('checkinCard').style.display='none'; }
-  else{ $('cpwCard').style.display='none'; $('checkinCard').style.display=''; }
+  const f=ME.features||{attendance:true,helpdesk:true};
+  const tabA=document.querySelector('.utab[data-uview="attendance"]');
+  const tabH=document.querySelector('.utab[data-uview="helpdesk"]');
+  tabA.style.display=f.attendance?'':'none';
+  tabH.style.display=f.helpdesk?'':'none';
+  if(ME.mustChange){ $('cpwCard').style.display=''; $('unav').style.display='none'; $('attendanceView').style.display='none'; $('helpdeskCard').style.display='none'; }
+  else{
+    $('cpwCard').style.display='none';
+    const first = f.attendance ? 'attendance' : (f.helpdesk ? 'helpdesk' : null);
+    if(first){ $('unav').style.display='flex'; showUView(first); }
+    else{ $('unav').style.display='none'; $('attendanceView').style.display='none'; $('helpdeskCard').style.display='none'; $('noFeatures').style.display=''; }
+  }
 })();
+
+function showUView(v){
+  document.querySelectorAll('.utab').forEach(t=>t.classList.toggle('active', t.dataset.uview===v));
+  $('attendanceView').style.display = v==='attendance' ? '' : 'none';
+  $('helpdeskCard').style.display = v==='helpdesk' ? '' : 'none';
+  if(v==='attendance') loadMyAttendance();
+  if(v==='helpdesk') loadMyTickets();
+}
+function statLabel(s){ return {present:'Present',partial:'Partial',absent:'Absent',permission:'Permission',normal_leave:'Normal Leave'}[s]||s; }
+let attnMonth=null; // 'YYYY-MM'
+function monthLabel(ym){ const [y,mo]=ym.split('-'); return new Date(+y,+mo-1,1).toLocaleString('en-GB',{month:'long',year:'numeric'}); }
+function shiftMonth(ym,delta){ let [y,mo]=ym.split('-').map(Number); mo+=delta; if(mo<1){mo=12;y--;} if(mo>12){mo=1;y++;} return `${y}-${String(mo).padStart(2,'0')}`; }
+$('attnPrev').onclick=()=>{ if(attnMonth){ attnMonth=shiftMonth(attnMonth,-1); loadMyAttendance(); } };
+$('attnNext').onclick=()=>{ if(attnMonth){ attnMonth=shiftMonth(attnMonth,1); loadMyAttendance(); } };
+async function loadMyAttendance(){
+  const qs = attnMonth ? ('?month='+attnMonth) : '';
+  let data; try{ const res=await fetch('/api/user/attendance'+qs); if(res.status===401){ location.href='/login'; return; } data=await res.json(); }catch(e){ return; }
+  attnMonth=data.monthKey;
+  $('attnMonthLabel').textContent=monthLabel(attnMonth);
+  const curMonth=(data.today.date||'').slice(0,7);
+  $('attnNext').disabled = attnMonth>=curMonth; // no future months
+  const t=data.today;
+  const tl = t.status==='absent' ? 'Not marked yet' : statLabel(t.status);
+  let tb=`<b>Today (${esc(t.date)}):</b> ${tl}`;
+  if(t.start||t.end) tb+=` &nbsp;·&nbsp; Start ${esc(t.start||'—')} &nbsp;·&nbsp; End ${esc(t.end||'—')}`+(t.worked?` &nbsp;·&nbsp; ${esc(t.worked)}`:'');
+  $('todayBanner').innerHTML=`<div class="tbanner ${t.status}">${tb}</div>`;
+  const m=data.month;
+  const st=(n,l)=>`<div class="mstat"><div class="n">${esc(String(n))}</div><div class="l">${l}</div></div>`;
+  $('monthSummary').innerHTML=st(m.present,'Present days')+st(m.partial,'Partial')+st(m.permission,'Permission')+st(m.normalLeave,'Normal leave')+st(m.totalWorked||'0m','Hours worked');
+  if(!data.history.length){ $('attnHistory').innerHTML='<div style="color:var(--muted);font-size:13px;">No attendance records for this month.</div>'; return; }
+  let h='<table class="atable"><thead><tr><th>Date</th><th>Start</th><th>End</th><th>Worked</th><th>Status</th></tr></thead><tbody>';
+  for(const r of data.history){ h+=`<tr><td>${esc(r.date)}</td><td>${esc(r.start||'—')}</td><td>${esc(r.end||'—')}</td><td>${esc(r.worked||'—')}</td><td><span class="sbadge ${r.status}">${esc(statLabel(r.status))}</span></td></tr>`; }
+  h+='</tbody></table>';
+  $('attnHistory').innerHTML=h;
+}
+document.querySelectorAll('.utab').forEach(t=>t.onclick=()=>showUView(t.dataset.uview));
+
+// ---- helpdesk (user) ----
+function hdStatus(cls,msg){ const s=$('hdStatus'); if(!msg){s.className='status';s.innerHTML='';return;} s.className='status show '+cls; s.innerHTML=msg; }
+$('hdSubmit').onclick=async()=>{
+  const subject=$('hdSubject').value.trim(), message=$('hdMessage').value.trim();
+  const category=$('hdCategory').value, priority=$('hdPriority').value;
+  if(!subject||!message){ hdStatus('err','Enter a subject and message.'); return; }
+  $('hdSubmit').disabled=true; hdStatus('busy','Submitting…');
+  try{
+    const res=await fetch('/api/helpdesk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject,message,category,priority})});
+    if(res.status===401){ location.href='/login'; return; }
+    const d=await res.json();
+    if(!res.ok){ hdStatus('err', d.error||'Could not submit.'); }
+    else{ hdStatus('ok','Ticket submitted.'); $('hdSubject').value=''; $('hdMessage').value=''; myPage=1; loadMyTickets(); }
+  }catch(e){ hdStatus('err','Network error.'); }
+  $('hdSubmit').disabled=false;
+};
+let MYTK=[], myPage=1; const MY_PAGE_SIZE=3;
+async function loadMyTickets(){
+  const el=$('hdMine');
+  try{
+    const res=await fetch('/api/helpdesk/mine');
+    if(res.status===401){ location.href='/login'; return; }
+    MYTK=await res.json();
+    renderMyTickets();
+  }catch(e){ el.innerHTML='<div style="color:var(--muted);font-size:13px;">Could not load tickets.</div>'; $('hdMinePager').style.display='none'; }
+}
+function renderMyTickets(){
+  const el=$('hdMine'), pgEl=$('hdMinePager');
+  const list=MYTK;
+  if(!list.length){ el.innerHTML='<div style="color:var(--muted);font-size:13px;">No tickets yet.</div>'; pgEl.style.display='none'; return; }
+  const pages=Math.max(1,Math.ceil(list.length/MY_PAGE_SIZE));
+  if(myPage>pages) myPage=pages; if(myPage<1) myPage=1;
+  const startI=(myPage-1)*MY_PAGE_SIZE;
+  const pageList=list.slice(startI,startI+MY_PAGE_SIZE);
+  {
+    const fmt=d=>d?new Date(d).toLocaleString('en-GB',{timeZone:'Asia/Kolkata'}):'';
+    const stLabel={open:'Open',on_hold:'On hold',resolved:'Resolved'};
+    el.innerHTML=pageList.map(t=>{
+      const tags=[t.category,t.priority?t.priority+' priority':''].filter(Boolean).map(x=>esc(x)).join(' · ');
+      let thread=`<div class="ubub user"><span class="uwho">You · ${esc(fmt(t.createdAt))}</span>${esc(t.message)}</div>`;
+      if(t.adminReply) thread+=`<div class="ubub admin"><span class="uwho">Admin</span>${esc(t.adminReply)}</div>`;
+      for(const m of (t.messages||[])) thread+=`<div class="ubub ${m.sender}"><span class="uwho">${m.sender==='admin'?'Admin':'You'} · ${esc(fmt(m.createdAt))}</span>${esc(m.message)}</div>`;
+      const replyBox = t.status==='resolved'
+        ? `<div style="color:var(--muted);font-size:12.5px;">This ticket is resolved and closed for new messages.</div>`
+        : `<textarea id="utk-${t.id}" placeholder="Add a message…" style="min-height:52px;"></textarea>`+
+          `<div style="margin-top:6px;"><button class="primary" style="margin-top:0;padding:11px;" data-umsg="${t.id}">Send</button></div>`;
+      return `<div class="tk"><div class="th"><span class="ts">${esc(t.subject)}</span><span class="badge ${t.status}">${stLabel[t.status]||t.status}</span></div>`+
+        `<div class="tm">${tags?tags+' · ':''}${esc(fmt(t.createdAt))}</div>`+
+        `<div class="uthread">${thread}</div>${replyBox}</div>`;
+    }).join('');
+    el.querySelectorAll('button[data-umsg]').forEach(b=>b.onclick=()=>hdUserSend(b.dataset.umsg));
+  }
+  if(pages>1){
+    pgEl.style.display='flex';
+    pgEl.innerHTML=`<button data-mpg="prev" ${myPage<=1?'disabled':''}>‹ Prev</button>`
+      + `<span>${startI+1}–${startI+pageList.length} of ${list.length} · page ${myPage}/${pages}</span>`
+      + `<button data-mpg="next" ${myPage>=pages?'disabled':''}>Next ›</button>`;
+    pgEl.querySelectorAll('button[data-mpg]').forEach(b=>b.onclick=()=>{
+      if(b.dataset.mpg==='prev'&&myPage>1) myPage--;
+      else if(b.dataset.mpg==='next'&&myPage<pages) myPage++;
+      renderMyTickets();
+    });
+  } else { pgEl.style.display='none'; pgEl.innerHTML=''; }
+}
+async function hdUserSend(id){
+  const ta=$('utk-'+id); const message=(ta&&ta.value||'').trim();
+  if(!message) return;
+  try{
+    const res=await fetch('/api/helpdesk/'+encodeURIComponent(id)+'/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message})});
+    if(res.status===401){ location.href='/login'; return; }
+    if(res.ok) loadMyTickets(); else { const d=await res.json().catch(()=>({})); alert(d.error||'Could not send.'); }
+  }catch(e){}
+}
 
 $('cpwBtn').onclick=async()=>{
   const cur=$('curPw').value, np=$('newPw').value, cp=$('confPw').value;
@@ -166,6 +392,7 @@ function istStamp(d){
     .formatToParts(d).reduce((o,pp)=>(o[pp.type]=pp.value,o),{});
   return `${x.year}-${x.month}-${x.day} ${x.hour}:${x.minute}:${x.second} IST`;
 }
+function istHour(d){ return Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hourCycle:'h23',hour:'2-digit'}).format(d)); }
 async function startCamera(){
   setStatus('','');
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
@@ -183,7 +410,14 @@ $('captureBtn').onclick=async()=>{
   if(!stream) return;
   $('captureBtn').disabled=true; setStatus('busy','Getting your location… allow the permission prompt.');
   let pos; try{ pos=await getLocation(); }
-  catch(e){ setStatus('err','Location is required to check in. Enable location access, then tap Capture again.'); $('captureBtn').disabled=false; return; }
+  catch(e){
+    let msg='Location is required to check in. ';
+    if(e && e.code===1) msg+='Chrome blocked location for this site. Click the location/lock icon in the address bar → Site settings → allow Location, then reload and Capture again.';
+    else if(e && e.code===2) msg+='Your device couldn’t determine a position (POSITION_UNAVAILABLE). On a Mac this usually means macOS Location Services is off — turn on System Settings → Privacy & Security → Location Services (and enable it for Chrome), then reload.';
+    else if(e && e.code===3) msg+='The location request timed out. Check your Wi-Fi/network and tap Capture again.';
+    else msg+='Enable location access, then tap Capture again.';
+    setStatus('err', msg); $('captureBtn').disabled=false; return;
+  }
   capturedLat=pos.coords.latitude; capturedLng=pos.coords.longitude;
   const w=video.videoWidth||640, h=video.videoHeight||480;
   shot.width=w; shot.height=h; const ctx=shot.getContext('2d'); ctx.drawImage(video,0,0,w,h);
@@ -205,6 +439,13 @@ $('submitBtn').onclick=async()=>{
   const type=$('type').value;
   if(!capturedBlob){ setStatus('err','Capture a photo first.'); return; }
   if(capturedLat==null||capturedLng==null){ setStatus('err','Location missing — capture again with location enabled.'); return; }
+  const h=istHour(new Date());
+  if(type==='start' && h>=15){
+    if(!confirm('It’s already after 3 PM — the workday is nearly over. Are you sure you want to mark Start of the day?')) { setStatus('',''); return; }
+  }
+  if(type==='end' && h<12){
+    if(!confirm('It’s before noon — marking End of the day this early is unusual. Do you want to continue?')) { setStatus('',''); return; }
+  }
   const fd=new FormData();
   fd.append('type',type);
   fd.append('captureTime', capturedAt||new Date().toISOString());

@@ -154,6 +154,12 @@ async function defaultPasswordValid(password) {
   if (hash) return bcrypt.compare(String(password), hash);
   return String(password) === DEFAULT_USER_PASSWORD;
 }
+// Which sections the admin has enabled on the employee side (default: both on)
+async function getUserFeatures() {
+  const a = await db.getSetting('ui_attendance');
+  const h = await db.getSetting('ui_helpdesk');
+  return { attendance: a !== 'off', helpdesk: h !== 'off' };
+}
 
 // ---- uploads held in memory (then pushed to Supabase Storage) ----
 const upload = multer({
@@ -178,16 +184,14 @@ function splitDateTime(d) {
     time: `${parts.hour}:${parts.minute}:${parts.second}`
   };
 }
-function workedLabel(start, end) {
-  if (!start || !end) return '';
-  const a = new Date(start.capturedAt).getTime();
-  const b = new Date(end.capturedAt).getTime();
-  if (isNaN(a) || isNaN(b) || b <= a) return '';
-  let mins = Math.round((b - a) / 60000);
-  const h = Math.floor(mins / 60);
-  mins = mins % 60;
-  return h ? `${h}h ${mins}m` : `${mins}m`;
+function workedMins(start, end) {
+  if (!start || !end) return 0;
+  const a = new Date(start.capturedAt).getTime(), b = new Date(end.capturedAt).getTime();
+  if (isNaN(a) || isNaN(b) || b <= a) return 0;
+  return Math.round((b - a) / 60000);
 }
+function minsLabel(m) { if (!m) return ''; const h = Math.floor(m / 60); const r = m % 60; return h ? `${h}h ${r}m` : `${r}m`; }
+function workedLabel(start, end) { return minsLabel(workedMins(start, end)); }
 
 app.use(compression());                 // gzip JSON/HTML/CSS responses
 app.use(express.json({ limit: '2mb' })); // bounded body (bulk import can be sizeable)
@@ -255,11 +259,43 @@ app.post('/api/user/logout', (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/user/attendance', requireUser, async (req, res) => {
+  try {
+    const empId = req.user.empId;
+    const recs = await db.recordsByEmp(empId);
+    const overrides = await db.statusByEmp(empId);
+    const byDate = {};
+    for (const r of recs) {
+      if (!byDate[r.date]) byDate[r.date] = { date: r.date, start: null, end: null };
+      if (r.type === 'start') byDate[r.date].start = r; else byDate[r.date].end = r;
+    }
+    const rows = Object.values(byDate).map(d => {
+      const computed = (d.start && d.end) ? 'present' : (d.start || d.end) ? 'partial' : 'absent';
+      const status = overrides[d.date] || computed;
+      const wm = workedMins(d.start, d.end);
+      return { date: d.date, start: d.start ? d.start.time : '', end: d.end ? d.end.time : '', worked: minsLabel(wm), workedMin: wm, status };
+    }).sort((a, b) => b.date.localeCompare(a.date));
+    const todayStr = splitDateTime(new Date()).date;
+    const today = rows.find(r => r.date === todayStr) || { date: todayStr, start: '', end: '', worked: '', workedMin: 0, status: 'absent' };
+    let ym = (req.query.month || '').trim();
+    if (!/^\d{4}-\d{2}$/.test(ym)) ym = todayStr.slice(0, 7); // default: current month
+    const mr = rows.filter(r => r.date.startsWith(ym));
+    const totalMin = mr.reduce((s, r) => s + (r.workedMin || 0), 0);
+    const month = {
+      present: mr.filter(r => r.status === 'present').length,
+      partial: mr.filter(r => r.status === 'partial').length,
+      permission: mr.filter(r => r.status === 'permission').length,
+      normalLeave: mr.filter(r => r.status === 'normal_leave').length,
+      daysMarked: mr.length, totalWorked: minsLabel(totalMin)
+    };
+    res.json({ today, monthKey: ym, month, history: mr });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to load attendance.' }); }
+});
 app.get('/api/user/me', requireUser, async (req, res) => {
   try {
     const emp = await db.findEmployee(req.user.empId);
     if (!emp) return res.status(401).json({ error: 'Not found.' });
-    res.json({ empId: emp.empId, name: emp.name, businessUnit: emp.businessUnit, team: emp.team, campus: emp.campus, mustChange: req.user.mustChange });
+    res.json({ empId: emp.empId, name: emp.name, businessUnit: emp.businessUnit, team: emp.team, campus: emp.campus, mustChange: req.user.mustChange, features: await getUserFeatures() });
   } catch (err) { res.status(500).json({ error: 'Failed.' }); }
 });
 
@@ -278,6 +314,105 @@ app.post('/api/user/change-password', requireUser, async (req, res) => {
     audit(req, `user password change ${req.user.empId}`);
     res.json({ ok: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Could not change password.' }); }
+});
+
+// ---- HELPDESK ----
+app.post('/api/helpdesk', requireUser, async (req, res) => {
+  try {
+    const subject = (req.body.subject || '').trim();
+    const message = (req.body.message || '').trim();
+    const CATS = ['IT', 'HR', 'Payroll', 'Attendance', 'Other'];
+    const PRIOS = ['Low', 'Medium', 'High'];
+    const category = CATS.includes(req.body.category) ? req.body.category : 'Other';
+    const priority = PRIOS.includes(req.body.priority) ? req.body.priority : 'Medium';
+    if (!subject || !message) return res.status(400).json({ error: 'Subject and message are required.' });
+    if (subject.length > 150 || message.length > 2000) return res.status(400).json({ error: 'Subject/message too long.' });
+    const emp = await db.findEmployee(req.user.empId);
+    await db.createTicket({ empId: req.user.empId, name: emp ? emp.name : '', subject, message, category, priority });
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Could not submit ticket.' }); }
+});
+app.get('/api/helpdesk/mine', requireUser, async (req, res) => {
+  try { res.json(await db.listMyTickets(req.user.empId)); }
+  catch (err) { res.status(500).json({ error: 'Failed.' }); }
+});
+// employee adds a message to their own ticket (continues the chat; reopens if resolved)
+app.post('/api/helpdesk/:id/message', requireUser, async (req, res) => {
+  try {
+    const message = (req.body.message || '').trim();
+    if (!message) return res.status(400).json({ error: 'Message is required.' });
+    if (message.length > 2000) return res.status(400).json({ error: 'Message too long.' });
+    const t = await db.getTicket(req.params.id);
+    if (!t || t.empId !== req.user.empId) return res.status(404).json({ error: 'Ticket not found.' });
+    if (t.status === 'resolved') return res.status(403).json({ error: 'This ticket is resolved and is closed for new messages.' });
+    await db.addMessage(req.params.id, 'user', message);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Could not send message.' }); }
+});
+app.get('/api/helpdesk', requireAdmin, async (req, res) => {
+  try {
+    const status = ['open', 'on_hold', 'resolved'].includes(req.query.status) ? req.query.status : 'all';
+    res.json(await db.listTicketsPage({ page: req.query.page, pageSize: req.query.pageSize, status }));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// admin adds a reply message (does NOT auto-resolve)
+app.post('/api/helpdesk/:id/reply', requireAdmin, async (req, res) => {
+  try {
+    const message = (req.body.message || '').trim();
+    if (!message) return res.status(400).json({ error: 'Reply is required.' });
+    if (message.length > 2000) return res.status(400).json({ error: 'Reply too long.' });
+    await db.addMessage(req.params.id, 'admin', message);
+    audit(req, `helpdesk reply #${req.params.id}`);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// admin sets ticket status: open | on_hold | resolved
+app.post('/api/helpdesk/:id/status', requireAdmin, async (req, res) => {
+  try {
+    const status = (req.body.status || '').trim();
+    if (!['open', 'on_hold', 'resolved'].includes(status)) return res.status(400).json({ error: 'Invalid status.' });
+    await db.setTicketStatus(req.params.id, status);
+    audit(req, `helpdesk status #${req.params.id} -> ${status}`);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---- ADMIN: analytics (employee breakdowns + helpdesk stats) ----
+app.get('/api/analytics', requireAdmin, async (req, res) => {
+  try {
+    const emps = await db.listEmployees(); // active roster
+    const count = (key) => { const m = {}; for (const e of emps) { const v = (e[key] || '—'); m[v] = (m[v] || 0) + 1; } return m; };
+    const employees = {
+      total: emps.length,
+      byBusinessUnit: count('businessUnit'),
+      byTeam: count('team'),
+      byCampus: count('campus')
+    };
+    const helpdesk = await db.ticketStatusCounts();
+    // per-IST-month breakdown of tickets by current status
+    const istMonth = d => { const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit' }).formatToParts(new Date(d)).reduce((o, x) => (o[x.type] = x.value, o), {}); return `${p.year}-${p.month}`; };
+    const helpdeskByMonth = {};
+    for (const r of await db.ticketMeta()) {
+      const ym = istMonth(r.created_at);
+      const m = helpdeskByMonth[ym] || (helpdeskByMonth[ym] = { total: 0, open: 0, on_hold: 0, resolved: 0 });
+      m.total++; if (m[r.status] !== undefined) m[r.status]++;
+    }
+    res.json({ employees, helpdesk, helpdeskByMonth });
+  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
+// ---- ADMIN: control which sections are visible on the employee side ----
+app.get('/api/admin/user-features', requireAdmin, async (req, res) => {
+  try { res.json(await getUserFeatures()); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/admin/user-features', requireAdmin, async (req, res) => {
+  try {
+    await db.setSetting('ui_attendance', req.body.attendance ? 'on' : 'off');
+    await db.setSetting('ui_helpdesk', req.body.helpdesk ? 'on' : 'off');
+    audit(req, `user features attendance=${!!req.body.attendance} helpdesk=${!!req.body.helpdesk}`);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ---- ADMIN: set the global default user password ----

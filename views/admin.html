@@ -33,6 +33,54 @@
   .pill.partial{background:rgba(245,158,11,.15);color:#fcd34d;}
   .pill.absent{background:rgba(239,68,68,.15);color:#fca5a5;}
   .pill.permission{background:rgba(59,130,246,.16);color:#93c5fd;}
+  .pill.open{background:rgba(245,158,11,.16);color:#fcd34d;}
+  .pill.on_hold{background:rgba(148,163,184,.2);color:#cbd5e1;}
+  .pill.resolved{background:rgba(34,197,94,.16);color:#86efac;}
+  .ticket{border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px;background:var(--field);}
+  .ticket .thead{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;}
+  .ticket .subj{font-weight:700;font-size:14px;}
+  .ticket .meta{font-size:12px;color:var(--muted);margin-top:2px;}
+  .thread{margin:10px 0;display:flex;flex-direction:column;gap:6px;}
+  .bub{font-size:13px;padding:8px 11px;border-radius:9px;line-height:1.5;max-width:85%;white-space:pre-wrap;}
+  .bub .who{font-size:11px;color:var(--muted);display:block;margin-bottom:2px;}
+  .bub.user{background:var(--card);border:1px solid var(--border);align-self:flex-start;}
+  .bub.admin{background:rgba(59,130,246,.10);border:1px solid var(--border);align-self:flex-end;}
+  .ticket textarea{width:100%;min-height:56px;margin-top:6px;}
+  .tkbtns{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;}
+  .stbtn.active{font-weight:800;border-width:2px;box-shadow:0 0 0 2px rgba(0,0,0,.05) inset;}
+  .stbtn.active.hold{background:rgba(148,163,184,.22);color:#cbd5e1;border-color:#94a3b8;}
+  .stbtn.active.res{background:rgba(34,197,94,.2);color:#86efac;border-color:#22c55e;}
+  .stbtn.active.open{background:rgba(245,158,11,.2);color:#fcd34d;border-color:#f59e0b;}
+  .monthnav{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+  .mnbtn{border:1px solid var(--border);background:transparent;color:var(--txt);border-radius:8px;cursor:pointer;font-size:15px;line-height:1;padding:5px 12px;}
+  .mnbtn:hover:not(:disabled){border-color:var(--acc);color:var(--acc);}
+  .mnbtn:disabled{opacity:.4;cursor:not-allowed;}
+  .astats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;}
+  .astat{background:var(--field);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+  .astat .n{font-size:26px;font-weight:700;line-height:1;}
+  .astat .l{font-size:11px;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.03em;}
+  .astat.open .n{color:#f59e0b;} .astat.hold .n{color:#94a3b8;} .astat.res .n{color:#22c55e;} .astat.tot .n{color:var(--acc);}
+  .bar,.brow{display:flex;align-items:center;gap:12px;margin-bottom:8px;font-size:13px;}
+  .bar .lbl,.brow .lbl{width:190px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .bar .track,.brow .track{flex:1;background:var(--field);border-radius:6px;height:20px;position:relative;overflow:hidden;}
+  .brow .track{background:transparent;height:auto;}
+  .bar .fill{position:absolute;left:0;top:0;bottom:0;background:var(--acc);border-radius:6px;}
+  .bar .cnt,.brow .cnt{width:110px;text-align:right;font-weight:700;flex:none;}
+  .rowdenom,.rdh{width:84px;flex:none;}
+  .rowdenom{padding:5px 7px;font-size:12px;}
+  .rdh,.brow .cnt{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em;}
+  .brow.bhead{margin-bottom:6px;}
+  .denomtotal{font-size:13px;color:var(--muted);margin-top:10px;padding-top:8px;border-top:1px solid var(--border);}
+  @media(max-width:640px){.astats{grid-template-columns:repeat(2,1fr);}.bar .lbl{width:120px;}}
+  .foldhead{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .foldright{display:flex;align-items:center;gap:12px;}
+  .foldright label{font-size:11px;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400;display:flex;align-items:center;gap:6px;margin:0;}
+  .denom{width:96px;padding:6px 8px;font-size:13px;}
+  .caret{transition:transform .15s;font-size:12px;color:var(--muted);}
+  .foldcard.collapsed .caret{transform:rotate(-90deg);}
+  .foldcard.collapsed .foldbody{display:none;}
+  .subcard{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-top:12px;background:var(--field);}
+  .subcard>h2{font-size:14px;}
   .pill.normal_leave{background:rgba(168,85,247,.16);color:#d8b4fe;}
   .statusSel{padding:5px 8px;font-size:12px;border-radius:6px;max-width:150px;}
   .rowedit{width:100%;padding:6px 8px;font-size:13px;border-radius:7px;}
@@ -120,6 +168,8 @@
   <div class="tabs">
     <button class="tab active" data-view="attendance">Attendance</button>
     <button class="tab" data-view="employees">Employees</button>
+    <button class="tab" data-view="helpdesk">HelpDesk</button>
+    <button class="tab" data-view="analytics">Analytics</button>
   </div>
   <div class="right">
     <button class="ghost" id="themeBtn">☀️ Light</button>
@@ -166,6 +216,16 @@
       <div class="msg" id="addMsg"></div>
     </div>
     <div class="card">
+      <h2>User side visibility</h2>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Choose which sections employees see after logging in.</p>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;text-transform:none;letter-spacing:0;color:var(--txt);margin:0;"><input type="checkbox" id="uiAttendance" style="width:auto;"> Attendance</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;text-transform:none;letter-spacing:0;color:var(--txt);margin:0;"><input type="checkbox" id="uiHelpdesk" style="width:auto;"> Helpdesk</label>
+        <button class="btn" id="uiSaveBtn">Save</button>
+      </div>
+      <div class="msg" id="uiMsg"></div>
+    </div>
+    <div class="card">
       <h2>Employee login — default password</h2>
       <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Employees sign in the first time with this password (at <code>/login</code>), then set their own. Changing it only affects employees who haven't changed their password yet.</p>
       <div class="row">
@@ -204,6 +264,48 @@
       <div id="exitTable"><div class="empty">No exited employees.</div></div>
     </div>
   </section>
+
+  <!-- HELPDESK -->
+  <section id="helpdeskView" style="display:none;">
+    <div class="card">
+      <h2 style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <span>HelpDesk tickets</span>
+        <span style="display:flex;gap:8px;align-items:center;">
+          <select id="hdFilter" style="max-width:160px;"><option value="all">All</option><option value="open">Open</option><option value="on_hold">On hold</option><option value="resolved">Resolved</option></select>
+          <button class="ghost" id="hdRefresh">Refresh</button>
+        </span>
+      </h2>
+      <div id="hdList"><div class="empty">Loading…</div></div>
+    </div>
+  </section>
+
+  <!-- ANALYTICS -->
+  <section id="analyticsView" style="display:none;">
+    <div class="card foldcard">
+      <h2 class="foldhead"><span>HelpDesk overview</span><span class="caret">▾</span></h2>
+      <div class="foldbody">
+        <div class="monthnav"><button class="mnbtn" id="hdPrev">‹</button><b id="hdMonthLbl"></b><button class="mnbtn" id="hdNext">›</button></div>
+        <div class="astats" id="anHd"></div>
+      </div>
+    </div>
+    <div class="card foldcard collapsed">
+      <h2 class="foldhead"><span>Employees <span style="color:var(--muted);font-weight:400;">· total <b id="anTotal" style="color:var(--txt)">0</b></span></span><span class="caret">▾</span></h2>
+      <div class="foldbody">
+        <div class="foldcard collapsed subcard">
+          <h2 class="foldhead"><span>By Business Unit</span><span class="caret">▾</span></h2>
+          <div class="foldbody"><div class="brow bhead"><span class="lbl">Unit</span><span class="track"></span><span class="cnt">Count · %</span><span class="rdh">Denominator</span></div><div id="anBU"></div></div>
+        </div>
+        <div class="foldcard collapsed subcard">
+          <h2 class="foldhead"><span>By Team</span><span class="caret">▾</span></h2>
+          <div class="foldbody"><div class="brow bhead"><span class="lbl">Team</span><span class="track"></span><span class="cnt">Count · %</span><span class="rdh">Denominator</span></div><div id="anTeam"></div></div>
+        </div>
+        <div class="foldcard collapsed subcard">
+          <h2 class="foldhead"><span>By Campus</span><span class="caret">▾</span></h2>
+          <div class="foldbody"><div class="brow bhead"><span class="lbl">Campus</span><span class="track"></span><span class="cnt">Count · %</span><span class="rdh">Denominator</span></div><div id="anCampus"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <div class="lightbox" id="lightbox"><img id="lightimg" alt="attendance photo"></div>
@@ -238,7 +340,11 @@ document.querySelectorAll('.tab').forEach(t=>{
     const v=t.dataset.view;
     $('attendanceView').style.display=v==='attendance'?'':'none';
     $('employeesView').style.display=v==='employees'?'':'none';
+    $('helpdeskView').style.display=v==='helpdesk'?'':'none';
+    $('analyticsView').style.display=v==='analytics'?'':'none';
     if(v==='attendance'){ dayLoaded ? renderDay() : loadDay(); }
+    else if(v==='helpdesk'){ loadHelpdesk(); }
+    else if(v==='analytics'){ loadAnalytics(); }
     else { empLoaded ? (renderEmployees(), renderExited(), renderOptionManager()) : loadEmployees(); }
   };
 });
@@ -560,6 +666,18 @@ function flashMsg(id, text){
   clearTimeout(_msgTimers[id]);
   _msgTimers[id]=setTimeout(()=>{ el.textContent=''; }, 10000);
 }
+// user-side visibility settings
+(async function loadUserFeatures(){
+  try{ const f=await (await api('/api/admin/user-features')).json(); $('uiAttendance').checked=!!f.attendance; $('uiHelpdesk').checked=!!f.helpdesk; }catch(e){}
+})();
+$('uiSaveBtn').onclick=async()=>{
+  const attendance=$('uiAttendance').checked, helpdesk=$('uiHelpdesk').checked;
+  if(!attendance && !helpdesk){ if(!confirm('Both sections are off — employees will see nothing after login. Continue?')) return; }
+  try{
+    const res=await api('/api/admin/user-features',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({attendance,helpdesk})});
+    flashMsg('uiMsg', res.ok?'Saved. Employees see it on next load.':'Could not save.');
+  }catch(e){}
+};
 $('defPwBtn').onclick=async()=>{
   const pw=$('defPwIn').value;
   if((pw||'').length<6){ flashMsg('defPwMsg','Password must be at least 6 characters.'); return; }
@@ -742,6 +860,160 @@ function renderExited(){
     else if(b.dataset.exitpg==='next'&&exitPage<pages) exitPage++;
     renderExited();
   });
+}
+
+// ---- helpdesk (admin) ----
+let HD=[], hdTotal=0, hdPage=1, hdPageSize=10;
+$('hdRefresh').onclick=loadHelpdesk;
+$('hdFilter').onchange=()=>{ hdPage=1; loadHelpdesk(); };
+async function loadHelpdesk(){
+  const qs=`?status=${encodeURIComponent($('hdFilter').value)}&page=${hdPage}&pageSize=${hdPageSize}`;
+  try{
+    const d=await (await api('/api/helpdesk'+qs)).json();
+    HD=d.tickets||[]; hdTotal=d.total||0; hdPage=d.page||hdPage; hdPageSize=d.pageSize||hdPageSize;
+  }catch(e){ return; }
+  renderHelpdesk();
+}
+function renderHelpdesk(){
+  const el=$('hdList');
+  const pages=Math.max(1,Math.ceil(hdTotal/hdPageSize));
+  const startI=(hdPage-1)*hdPageSize;
+  const pageList=HD;
+  if(!hdTotal){ el.innerHTML='<div class="empty">No tickets.</div>'
+    + `<div class="pager"><span style="margin-left:auto;">Per page `
+    + `<select id="hdPageSize" style="max-width:80px;display:inline-block;width:auto;">`
+    + [10,25,50,100].map(n=>`<option value="${n}" ${n===hdPageSize?'selected':''}>${n}</option>`).join('')
+    + `</select></span></div>`;
+    const ps0=$('hdPageSize'); if(ps0) ps0.onchange=()=>{ hdPageSize=Number(ps0.value)||10; hdPage=1; loadHelpdesk(); };
+    return;
+  }
+  const stLabel={open:'Open',on_hold:'On hold',resolved:'Resolved'};
+  const fmt=d=>d?new Date(d).toLocaleString('en-GB',{timeZone:'Asia/Kolkata'}):'';
+  el.innerHTML=pageList.map(t=>{
+    const tags=[t.category,t.priority?t.priority+' priority':''].filter(Boolean).map(x=>esc(x)).join(' · ');
+    let thread=`<div class="bub user"><span class="who">${esc(t.name||t.empId)} · ${esc(fmt(t.createdAt))}</span>${esc(t.message)}</div>`;
+    if(t.adminReply) thread+=`<div class="bub admin"><span class="who">Admin</span>${esc(t.adminReply)}</div>`;
+    for(const m of (t.messages||[])) thread+=`<div class="bub ${m.sender}"><span class="who">${m.sender==='admin'?'Admin':esc(t.name||t.empId)} · ${esc(fmt(m.createdAt))}</span>${esc(m.message)}</div>`;
+    return `<div class="ticket"><div class="thead"><span class="subj">${esc(t.subject)}</span><span class="pill ${t.status}">${stLabel[t.status]||t.status}</span></div>`+
+      `<div class="meta">${esc(t.name||'')} · ${esc(t.empId)}${tags?' · '+tags:''}</div>`+
+      `<div class="thread">${thread}</div>`+
+      `<textarea id="hdr-${t.id}" placeholder="Type a reply…"></textarea>`+
+      `<div class="tkbtns"><button class="btn" data-reply="${t.id}">Send reply</button>`+
+        `<button class="ghost stbtn${t.status==='on_hold'?' active hold':''}" data-st="on_hold|${t.id}">On hold</button>`+
+        `<button class="ghost stbtn${t.status==='resolved'?' active res':''}" data-st="resolved|${t.id}">Resolve</button>`+
+        `<button class="ghost stbtn${t.status==='open'?' active open':''}" data-st="open|${t.id}">Reopen</button></div></div>`;
+  }).join('')
+    + `<div class="pager">`
+    + `<button class="ghost" data-hpg="prev" ${hdPage<=1?'disabled':''}>‹ Prev</button>`
+    + `<span>${startI+1}–${startI+pageList.length} of ${hdTotal}${pages>1?` · page ${hdPage}/${pages}`:''}</span>`
+    + `<button class="ghost" data-hpg="next" ${hdPage>=pages?'disabled':''}>Next ›</button>`
+    + `<span style="margin-left:auto;">Per page `
+    + `<select id="hdPageSize" style="max-width:80px;display:inline-block;width:auto;">`
+    + [10,25,50,100].map(n=>`<option value="${n}" ${n===hdPageSize?'selected':''}>${n}</option>`).join('')
+    + `</select></span></div>`;
+  el.querySelectorAll('button[data-reply]').forEach(b=>b.onclick=()=>hdReply(b.dataset.reply));
+  el.querySelectorAll('button[data-st]').forEach(b=>b.onclick=()=>{ const [st,id]=b.dataset.st.split('|'); hdSetStatus(id,st); });
+  el.querySelectorAll('button[data-hpg]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.hpg==='prev'&&hdPage>1) hdPage--;
+    else if(b.dataset.hpg==='next'&&hdPage<pages) hdPage++;
+    loadHelpdesk();
+  });
+  const ps=$('hdPageSize'); if(ps) ps.onchange=()=>{ hdPageSize=Number(ps.value)||10; hdPage=1; loadHelpdesk(); };
+}
+async function hdSetStatus(id,status){
+  try{
+    const res=await api('/api/helpdesk/'+encodeURIComponent(id)+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+    if(res.ok) loadHelpdesk(); else { const d=await res.json().catch(()=>({})); alert(d.error||'Failed.'); }
+  }catch(e){}
+}
+async function hdReply(id){
+  const ta=$('hdr-'+id); const message=(ta&&ta.value||'').trim();
+  if(!message){ alert('Enter a reply.'); return; }
+  try{
+    const res=await api('/api/helpdesk/'+encodeURIComponent(id)+'/reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message})});
+    if(res.ok) loadHelpdesk(); else { const d=await res.json().catch(()=>({})); alert(d.error||'Failed.'); }
+  }catch(e){}
+}
+
+// ---- analytics ----
+let HDBYMONTH={}, hdMonth=null;
+function curMonthIST(){ const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit'}).formatToParts(new Date()).reduce((o,x)=>(o[x.type]=x.value,o),{}); return `${p.year}-${p.month}`; }
+function shiftMonthA(ym,delta){ let [y,mo]=ym.split('-').map(Number); mo+=delta; if(mo<1){mo=12;y--;} if(mo>12){mo=1;y++;} return `${y}-${String(mo).padStart(2,'0')}`; }
+$('hdPrev').onclick=()=>{ hdMonth=shiftMonthA(hdMonth,-1); renderHdMonth(); };
+$('hdNext').onclick=()=>{ hdMonth=shiftMonthA(hdMonth,1); renderHdMonth(); };
+function renderHdMonth(){
+  $('hdMonthLbl').textContent=monthLbl(hdMonth);
+  $('hdNext').disabled = hdMonth>=curMonthIST();
+  const s=HDBYMONTH[hdMonth]||{total:0,open:0,on_hold:0,resolved:0};
+  const c=(cls,n,l)=>`<div class="astat ${cls}"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+  $('anHd').innerHTML=c('tot',s.total,'Total tickets')+c('open',s.open,'Open')+c('hold',s.on_hold,'On hold')+c('res',s.resolved,'Resolved');
+}
+async function loadAnalytics(){
+  let d; try{ d=await (await api('/api/analytics')).json(); }catch(e){ return; }
+  HDBYMONTH=d.helpdeskByMonth||{};
+  if(!hdMonth) hdMonth=curMonthIST();
+  renderHdMonth();
+  $('anTotal').textContent=d.employees.total;
+  renderBreakdown('anBU', d.employees.byBusinessUnit);
+  renderBreakdown('anTeam', d.employees.byTeam);
+  renderBreakdown('anCampus', d.employees.byCampus, true); // alphabetical for easy reading
+}
+const AN={};
+// Per-unit denominators: each row has its own denominator; they sum to a total.
+function renderBreakdown(chartId, obj, alpha){
+  let saved={}; try{ saved=JSON.parse(localStorage.getItem('denom_'+chartId)||'{}'); }catch(e){}
+  const denoms={}; for(const [k,v] of Object.entries(obj)) denoms[k]=(saved[k]!=null?saved[k]:v); // default = count
+  AN[chartId]={obj,denoms};
+  const entries=Object.entries(obj).sort(alpha ? (a,b)=>a[0].localeCompare(b[0]) : (a,b)=>b[1]-a[1]);
+  const el=$(chartId);
+  if(!entries.length){ el.innerHTML='<div class="empty">No data.</div>'; return; }
+  el.innerHTML = entries.map(([k])=>
+    `<div class="bar" data-k="${esc(k)}"><span class="lbl" title="${esc(k)}">${esc(k)}</span>`+
+    `<span class="track"><span class="fill"></span></span>`+
+    `<span class="cnt"></span>`+
+    `<input class="rowdenom" type="number" min="1"></div>`
+  ).join('') + `<div class="denomtotal" id="${chartId}_tot"></div>`;
+  el.querySelectorAll('.bar').forEach(row=>{
+    const k=row.dataset.k, v=obj[k], inp=row.querySelector('.rowdenom');
+    inp.value=denoms[k];
+    inp.oninput=()=>{
+      AN[chartId].denoms[k]=Number(inp.value)||0;
+      try{ localStorage.setItem('denom_'+chartId, JSON.stringify(AN[chartId].denoms)); }catch(e){}
+      updateRow(chartId,row,k,v); updateTotal(chartId);
+    };
+    updateRow(chartId,row,k,v);
+  });
+  updateTotal(chartId);
+}
+function updateRow(chartId,row,k,v){
+  const dn=Math.max(1, Number(AN[chartId].denoms[k])||0);
+  const pct=Math.round(v/dn*100), w=Math.min(100, v/dn*100);
+  row.querySelector('.fill').style.width=w+'%';
+  row.querySelector('.cnt').textContent=`${v} · ${pct}%`;
+}
+function updateTotal(chartId){
+  const {obj,denoms}=AN[chartId];
+  const td=Object.values(denoms).reduce((a,b)=>a+(Number(b)||0),0);
+  const tc=Object.values(obj).reduce((a,b)=>a+b,0);
+  const el=$(chartId+'_tot'); if(el) el.innerHTML=`Sum of denominators: <b style="color:var(--txt)">${td}</b> · Total count: <b style="color:var(--txt)">${tc}</b>`;
+}
+// foldable cards (ignore clicks on the denominator input)
+document.querySelectorAll('.foldhead').forEach(h=>h.onclick=(e)=>{
+  if(e.target.tagName==='INPUT') return;
+  h.closest('.foldcard').classList.toggle('collapsed');
+});
+function monthLbl(ym){ const [y,m]=String(ym).split('-'); return new Date(+y,+m-1,1).toLocaleString('en-GB',{month:'short',year:'numeric'}); }
+function barsSeries(id, arr, key){
+  if(!arr||!arr.length){ $(id).innerHTML='<div class="empty">No data yet (run the analytics SQL functions).</div>'; return; }
+  const max=Math.max(1,...arr.map(x=>Number(x[key])||0));
+  $(id).innerHTML=arr.map(x=>`<div class="bar"><span class="lbl">${esc(monthLbl(x.ym))}</span><span class="track"><span class="fill" style="width:${Math.round((Number(x[key])||0)/max*100)}%"></span></span><span class="cnt">${x[key]}</span></div>`).join('');
+}
+function bars(id, obj){
+  const entries=Object.entries(obj).sort((a,b)=>b[1]-a[1]);
+  const max=Math.max(1,...entries.map(e=>e[1]));
+  $(id).innerHTML = entries.length
+    ? entries.map(([k,v])=>`<div class="bar"><span class="lbl" title="${esc(k)}">${esc(k)}</span><span class="track"><span class="fill" style="width:${Math.round(v/max*100)}%"></span></span><span class="cnt">${v}</span></div>`).join('')
+    : '<div class="empty">No data.</div>';
 }
 
 // ---- logout ----

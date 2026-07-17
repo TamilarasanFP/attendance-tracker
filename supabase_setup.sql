@@ -78,6 +78,54 @@ create table if not exists public.options (
 );
 -- (The app seeds default options automatically on first load.)
 
+-- 2d) HelpDesk tickets (employees raise, admins reply)
+create table if not exists public.helpdesk (
+  id          bigint generated always as identity primary key,
+  emp_id      text not null,
+  name        text,
+  subject     text not null,
+  message     text not null,
+  status      text not null default 'open' check (status in ('open','resolved')),
+  admin_reply text,
+  created_at  timestamptz not null default now(),
+  replied_at  timestamptz
+);
+create index if not exists helpdesk_emp_idx    on public.helpdesk(emp_id);
+create index if not exists helpdesk_status_idx on public.helpdesk(status);
+alter table public.helpdesk add column if not exists category text;
+alter table public.helpdesk add column if not exists priority text;
+-- allow the "on_hold" status
+alter table public.helpdesk drop constraint if exists helpdesk_status_check;
+alter table public.helpdesk add constraint helpdesk_status_check check (status in ('open','on_hold','resolved'));
+alter table public.helpdesk enable row level security;
+
+-- Conversation thread for tickets
+create table if not exists public.helpdesk_messages (
+  id         bigint generated always as identity primary key,
+  ticket_id  bigint not null,
+  sender     text not null check (sender in ('user','admin')),
+  message    text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists helpdesk_messages_ticket_idx on public.helpdesk_messages(ticket_id);
+alter table public.helpdesk_messages enable row level security;
+
+-- 2e) Analytics helpers (monthly trends)
+create or replace function public.attendance_by_month()
+returns table(ym text, days_attended bigint)
+language sql stable as $$
+  select substring(date,1,7) as ym, count(distinct emp_id || '|' || date) as days_attended
+  from public.records
+  group by 1 order by 1;
+$$;
+create or replace function public.tickets_by_month()
+returns table(ym text, cnt bigint)
+language sql stable as $$
+  select to_char(created_at, 'YYYY-MM') as ym, count(*) as cnt
+  from public.helpdesk
+  group by 1 order by 1;
+$$;
+
 -- 3) Lock the tables down. The server uses the service_role key, which bypasses
 --    RLS. Enabling RLS with NO policies means the anon/public key can read
 --    nothing — so even if someone got your anon key, the data stays private.

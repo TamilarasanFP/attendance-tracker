@@ -127,6 +127,88 @@ async function resetEmployeePassword(empId) {
   if (error) throw error;
 }
 
+// ---- helpdesk tickets ----
+const ticketRow = t => ({
+  id: t.id, empId: t.emp_id, name: t.name || '', subject: t.subject, message: t.message,
+  category: t.category || '', priority: t.priority || '',
+  status: t.status, adminReply: t.admin_reply || '', createdAt: t.created_at, repliedAt: t.replied_at
+});
+async function createTicket({ empId, name, subject, message, category, priority }) {
+  const { error } = await client().from('helpdesk').insert({ emp_id: empId, name, subject, message, category: category || null, priority: priority || null });
+  if (error) throw error;
+}
+function attachMessages(tickets, msgs) {
+  const byT = {};
+  for (const m of (msgs || [])) (byT[m.ticket_id] = byT[m.ticket_id] || []).push({ sender: m.sender, message: m.message, createdAt: m.created_at });
+  return tickets.map(t => ({ ...ticketRow(t), messages: byT[t.id] || [] }));
+}
+async function listMyTickets(empId) {
+  const { data: tks, error } = await client().from('helpdesk').select('*').eq('emp_id', empId).order('created_at', { ascending: false });
+  if (error) throw error;
+  const ids = tks.map(t => t.id);
+  let msgs = [];
+  if (ids.length) { const { data, error: e2 } = await client().from('helpdesk_messages').select('*').in('ticket_id', ids).order('created_at', { ascending: true }); if (e2) throw e2; msgs = data || []; }
+  return attachMessages(tks, msgs);
+}
+async function listAllTickets() {
+  const { data: tks, error } = await client().from('helpdesk').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  const { data: msgs, error: e2 } = await client().from('helpdesk_messages').select('*').order('created_at', { ascending: true });
+  if (e2) throw e2;
+  return attachMessages(tks, msgs);
+}
+// server-side paginated ticket list (admin). status: 'all'|'open'|'on_hold'|'resolved'
+async function listTicketsPage({ page = 1, pageSize = 10, status = 'all' } = {}) {
+  const size = Math.min(100, Math.max(1, Number(pageSize) || 10));
+  const pg = Math.max(1, Number(page) || 1);
+  const from = (pg - 1) * size, to = from + size - 1;
+  let q = client().from('helpdesk').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range(from, to);
+  if (status && status !== 'all') q = q.eq('status', status);
+  const { data: tks, error, count } = await q;
+  if (error) throw error;
+  const ids = (tks || []).map(t => t.id);
+  let msgs = [];
+  if (ids.length) { const { data, error: e2 } = await client().from('helpdesk_messages').select('*').in('ticket_id', ids).order('created_at', { ascending: true }); if (e2) throw e2; msgs = data || []; }
+  return { tickets: attachMessages(tks || [], msgs), total: count || 0, page: pg, pageSize: size };
+}
+async function getTicket(id) {
+  const { data, error } = await client().from('helpdesk').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data ? ticketRow(data) : null;
+}
+async function addMessage(ticketId, sender, message) {
+  const { error } = await client().from('helpdesk_messages').insert({ ticket_id: ticketId, sender, message });
+  if (error) throw error;
+}
+async function attendanceByMonth() {
+  const { data, error } = await client().rpc('attendance_by_month');
+  if (error) throw error;
+  return data || [];
+}
+async function ticketsByMonth() {
+  const { data, error } = await client().rpc('tickets_by_month');
+  if (error) throw error;
+  return data || [];
+}
+async function ticketStatusCounts() {
+  const { data, error } = await client().from('helpdesk').select('status');
+  if (error) throw error;
+  const c = { total: data.length, open: 0, on_hold: 0, resolved: 0 };
+  for (const r of data) if (c[r.status] !== undefined) c[r.status]++;
+  return c;
+}
+async function ticketMeta() { // created_at + status, for monthly breakdowns
+  const { data, error } = await client().from('helpdesk').select('created_at,status');
+  if (error) throw error;
+  return data;
+}
+async function setTicketStatus(ticketId, status) {
+  const patch = { status };
+  if (status === 'resolved') patch.replied_at = new Date().toISOString();
+  const { error } = await client().from('helpdesk').update(patch).eq('id', ticketId);
+  if (error) throw error;
+}
+
 // ---- key/value settings ----
 async function getSetting(key) {
   const { data, error } = await client().from('settings').select('value').eq('key', key).maybeSingle();
@@ -177,6 +259,18 @@ async function recordsByDate(date) {
   const { data, error } = await client().from('records').select('*').eq('date', date);
   if (error) throw error;
   return data.map(rowToRec);
+}
+async function recordsByEmp(empId) {
+  const { data, error } = await client().from('records').select('*').eq('emp_id', empId);
+  if (error) throw error;
+  return data.map(rowToRec);
+}
+async function statusByEmp(empId) {
+  const { data, error } = await client().from('day_status').select('date,status').eq('emp_id', empId);
+  if (error) throw error;
+  const m = {};
+  for (const r of data) m[r.date] = r.status;
+  return m;
 }
 async function getRecord(id) {
   const { data, error } = await client().from('records').select('*').eq('id', id).maybeSingle();
@@ -254,9 +348,10 @@ async function ping() {
 module.exports = {
   isConfigured, BUCKET,
   listEmployees, listExited, setExited, findEmployee, upsertEmployee, upsertEmployees, updateEmployee, deleteEmployee, clearEmployees,
-  insertRecord, insertRecords, listRecords, recordsByDate, getRecord, updateRecord, deleteRecord, clearRecords, clearRecordsByDate,
+  insertRecord, insertRecords, listRecords, recordsByDate, recordsByEmp, statusByEmp, getRecord, updateRecord, deleteRecord, clearRecords, clearRecordsByDate,
   statusByDate, setStatus,
   listOptions, addOptions, removeOption,
   getEmployeeAuth, setEmployeePassword, resetEmployeePassword, getSetting, setSetting,
+  createTicket, listMyTickets, listAllTickets, listTicketsPage, getTicket, addMessage, setTicketStatus, ticketStatusCounts, ticketMeta, attendanceByMonth, ticketsByMonth,
   uploadPhoto, downloadPhoto, ping
 };
