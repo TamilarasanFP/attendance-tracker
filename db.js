@@ -220,6 +220,24 @@ async function setSetting(key, value) {
   if (error) throw error;
 }
 
+// ---- campus geofencing ----
+function geoRow(r) { return { campus: r.campus, lat: r.lat, lng: r.lng, radiusM: r.radius_m }; }
+async function listCampusGeo() {
+  const { data, error } = await client().from('campus_geo').select('*').order('campus');
+  if (error) throw error;
+  return (data || []).map(geoRow);
+}
+async function getCampusGeo(campus) {
+  const { data, error } = await client().from('campus_geo').select('*').eq('campus', campus).maybeSingle();
+  if (error) throw error;
+  return data ? geoRow(data) : null;
+}
+async function setCampusGeo(campus, lat, lng, radiusM) {
+  const { error } = await client().from('campus_geo')
+    .upsert({ campus, lat, lng, radius_m: radiusM, updated_at: new Date().toISOString() }, { onConflict: 'campus' });
+  if (error) throw error;
+}
+
 // ---- dropdown option lists (business_unit | team | campus) ----
 async function listOptions() {
   const { data, error } = await client().from('options').select('category,value').order('value');
@@ -352,6 +370,7 @@ module.exports = {
   statusByDate, setStatus,
   listOptions, addOptions, removeOption,
   getEmployeeAuth, setEmployeePassword, resetEmployeePassword, getSetting, setSetting,
+  listCampusGeo, getCampusGeo, setCampusGeo,
   createTicket, listMyTickets, listAllTickets, listTicketsPage, getTicket, addMessage, setTicketStatus, ticketStatusCounts, ticketMeta, attendanceByMonth, ticketsByMonth,
   uploadPhoto, downloadPhoto, ping
 };

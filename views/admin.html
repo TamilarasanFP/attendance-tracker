@@ -79,6 +79,10 @@
   .caret{transition:transform .15s;font-size:12px;color:var(--muted);}
   .foldcard.collapsed .caret{transform:rotate(-90deg);}
   .foldcard.collapsed .foldbody{display:none;}
+  .georow{display:grid;grid-template-columns:190px 1fr 1fr 90px auto auto 44px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);}
+  .georow>input{width:100%;}
+  .georow .geostate{font-size:12px;color:var(--muted);white-space:nowrap;}
+  @media(max-width:820px){ .georow{grid-template-columns:130px 1fr 1fr;row-gap:6px;} .georow .geohere,.georow .geosave,.georow .geostate{grid-column:span 1;} }
   .subcard{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-top:12px;background:var(--field);}
   .subcard>h2{font-size:14px;}
   .pill.normal_leave{background:rgba(168,85,247,.16);color:#d8b4fe;}
@@ -203,18 +207,7 @@
 
   <!-- EMPLOYEES (roster) -->
   <section id="employeesView" style="display:none;">
-    <div class="card">
-      <h2>Add employee</h2>
-      <div class="row">
-        <div><label>Associate ID</label><input id="empIdIn" placeholder="135454"></div>
-        <div><label>Name</label><input id="empNameIn" placeholder="Priya Kumar"></div>
-        <div><label>Business Unit</label><input id="empBUIn" list="buList" placeholder="Select or type…" autocomplete="off"></div>
-        <div><label>Team</label><input id="empTeamIn" list="teamList" placeholder="Select or type…" autocomplete="off"></div>
-        <div><label>Campus</label><input id="empCampusIn" list="campusList" placeholder="Select or type…" autocomplete="off"></div>
-        <button class="btn" id="addEmpBtn">Add</button>
-      </div>
-      <div class="msg" id="addMsg"></div>
-    </div>
+    <!-- User side visibility -->
     <div class="card">
       <h2>User side visibility</h2>
       <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Choose which sections employees see after logging in.</p>
@@ -225,43 +218,89 @@
       </div>
       <div class="msg" id="uiMsg"></div>
     </div>
-    <div class="card">
-      <h2>Employee login — default password</h2>
-      <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Employees sign in the first time with this password (at <code>/login</code>), then set their own. Changing it only affects employees who haven't changed their password yet.</p>
-      <div class="row">
-        <div><label>Default password</label><input id="defPwIn" type="password" placeholder="e.g. Welcome@123"></div>
-        <button class="btn" id="defPwBtn">Save</button>
+
+    <!-- Add employee (with nested Employee login + Bulk import) -->
+    <div class="card foldcard">
+      <h2 class="foldhead"><span>Add employee</span><span class="caret">▾</span></h2>
+      <div class="foldbody">
+        <div class="row">
+          <div><label>Associate ID</label><input id="empIdIn" placeholder="135454"></div>
+          <div><label>Name</label><input id="empNameIn" placeholder="Priya Kumar"></div>
+          <div><label>Business Unit</label><input id="empBUIn" list="buList" placeholder="Select or type…" autocomplete="off"></div>
+          <div><label>Team</label><input id="empTeamIn" list="teamList" placeholder="Select or type…" autocomplete="off"></div>
+          <div><label>Campus</label><input id="empCampusIn" list="campusList" placeholder="Select or type…" autocomplete="off"></div>
+          <button class="btn" id="addEmpBtn">Add</button>
+        </div>
+        <div class="msg" id="addMsg"></div>
+
+        <div class="foldcard collapsed subcard">
+          <h2 class="foldhead"><span>Employee login — default password</span><span class="caret">▾</span></h2>
+          <div class="foldbody">
+            <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Employees sign in the first time with this password (at <code>/login</code>), then set their own. Changing it only affects employees who haven't changed their password yet.</p>
+            <div class="row">
+              <div><label>Default password</label><input id="defPwIn" type="password" placeholder="e.g. Welcome@123"></div>
+              <button class="btn" id="defPwBtn">Save</button>
+            </div>
+            <div class="msg" id="defPwMsg"></div>
+          </div>
+        </div>
+
+        <div class="foldcard collapsed subcard">
+          <h2 class="foldhead"><span>Bulk import</span><span class="caret">▾</span></h2>
+          <div class="foldbody">
+            <p style="font-size:13px;color:var(--muted);margin:0 0 8px;">One employee per line as <code>Associate ID, Name, Business Unit, Team, Campus</code> (comma or tab separated). Business Unit, Team and Campus are optional. A header row is ignored — you can paste straight from your sheet.</p>
+            <textarea id="bulkText" rows="5" style="width:100%;" placeholder="135454, Priya Kumar, Engineering, Platform, Chennai&#10;135628, Arun Raj, Sales, Field, Bangalore"></textarea>
+            <div style="margin-top:10px;"><button class="btn" id="bulkBtn">Import</button></div>
+            <div class="msg" id="bulkMsg"></div>
+          </div>
+        </div>
       </div>
-      <div class="msg" id="defPwMsg"></div>
     </div>
-    <div class="card">
-      <h2>Bulk import</h2>
-      <p style="font-size:13px;color:var(--muted);margin:0 0 8px;">One employee per line as <code>Associate ID, Name, Business Unit, Team, Campus</code> (comma or tab separated). Business Unit, Team and Campus are optional. A header row is ignored — you can paste straight from your sheet.</p>
-      <textarea id="bulkText" rows="5" style="width:100%;" placeholder="135454, Priya Kumar, Engineering, Platform, Chennai&#10;135628, Arun Raj, Sales, Field, Bangalore"></textarea>
-      <div style="margin-top:10px;"><button class="btn" id="bulkBtn">Import</button></div>
-      <div class="msg" id="bulkMsg"></div>
+
+    <!-- Campus locations (geofencing) -->
+    <div class="card foldcard collapsed">
+      <h2 class="foldhead"><span>Campus locations (geofencing)</span><span class="caret">▾</span></h2>
+      <div class="foldbody">
+        <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Set each campus's coordinates and an allowed radius. Employees whose campus has coordinates <b>can only check in within that radius</b>. Leave a campus blank to disable geofencing for it. Tip: on Google Maps, right-click a spot → click the lat,lng to copy.</p>
+        <div id="geoManager"><div class="empty">Loading…</div></div>
+        <div class="msg" id="geoMsg"></div>
+      </div>
     </div>
-    <div class="card">
-      <h2>Manage dropdown lists</h2>
-      <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Add or remove the options shown in the Business Unit, Team and Campus dropdowns. Removing one won't change employees who already have that value.</p>
-      <div class="optgrid" id="optManager"></div>
+
+    <!-- Manage dropdown lists -->
+    <div class="card foldcard collapsed">
+      <h2 class="foldhead"><span>Manage dropdown lists</span><span class="caret">▾</span></h2>
+      <div class="foldbody">
+        <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Add or remove the options shown in the Business Unit, Team and Campus dropdowns. Removing one won't change employees who already have that value.</p>
+        <div class="optgrid" id="optManager"></div>
+      </div>
     </div>
-    <div class="card">
-      <h2 style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+
+    <!-- Employees roster -->
+    <div class="card foldcard">
+      <h2 class="foldhead">
         <span>Employees (<span id="empCount">0</span>)</span>
-        <span style="display:flex;gap:8px;">
+        <span style="display:flex;gap:8px;align-items:center;">
           <input id="empSearch" placeholder="Filter by any field…" style="max-width:220px;">
+          <span class="caret">▾</span>
         </span>
       </h2>
-      <div id="empTable"><div class="empty">Loading…</div></div>
+      <div class="foldbody"><div id="empTable"><div class="empty">Loading…</div></div></div>
     </div>
-    <div class="card">
-      <h2 style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+
+    <!-- Exit list -->
+    <div class="card foldcard collapsed">
+      <h2 class="foldhead">
         <span>Exit list (<span id="exitCount">0</span>)</span>
-        <input id="exitSearch" placeholder="Filter by any field…" style="max-width:220px;">
+        <span style="display:flex;gap:8px;align-items:center;">
+          <input id="exitSearch" placeholder="Filter by any field…" style="max-width:220px;">
+          <span class="caret">▾</span>
+        </span>
       </h2>
-      <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Exited employees are removed from attendance but their history is kept. Restore to make them active again.</p>
-      <div id="exitTable"><div class="empty">No exited employees.</div></div>
+      <div class="foldbody">
+        <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Exited employees are removed from attendance but their history is kept. Restore to make them active again.</p>
+        <div id="exitTable"><div class="empty">No exited employees.</div></div>
+      </div>
     </div>
   </section>
 
@@ -631,6 +670,7 @@ async function loadOptions(){
   try{ OPTIONS=await (await api('/api/options')).json(); }catch(e){ return; }
   applyOptionLists();
   renderOptionManager();
+  loadGeo();
 }
 function renderOptionManager(){
   const el=$('optManager'); if(!el) return;
@@ -656,6 +696,52 @@ async function addOptionUI(cat,value){
 async function removeOptionUI(cat,value){
   if(!confirm(`Remove "${value}" from ${cat.replace('_',' ')} options?`)) return;
   try{ await api('/api/options?category='+encodeURIComponent(cat)+'&value='+encodeURIComponent(value),{method:'DELETE'}); loadOptions(); }catch(e){}
+}
+
+// ---- campus geofencing ----
+let GEO={};
+async function loadGeo(){
+  try{ const arr=await (await api('/api/admin/campus-geo')).json(); GEO={}; for(const g of arr) GEO[g.campus]=g; }catch(e){ GEO={}; }
+  renderGeoManager();
+}
+function renderGeoManager(){
+  const el=$('geoManager'); if(!el) return;
+  const campuses=OPTIONS.campus||[];
+  if(!campuses.length){ el.innerHTML='<div class="empty">Add campuses under “Manage dropdown lists” first.</div>'; return; }
+  el.innerHTML=campuses.map(c=>{
+    const g=GEO[c]||{}, set=(g.lat!=null&&g.lng!=null);
+    return `<div class="georow" data-c="${esc(c)}">`+
+      `<b>${esc(c)}</b>`+
+      `<input class="geolat" placeholder="Latitude" value="${set?g.lat:''}">`+
+      `<input class="geolng" placeholder="Longitude" value="${set?g.lng:''}">`+
+      `<input class="georad" type="number" min="1" placeholder="Radius m" value="${g.radiusM!=null?g.radiusM:200}">`+
+      `<button class="ghost geohere" type="button">Use my location</button>`+
+      `<button class="btn geosave" type="button">Save</button>`+
+      `<span class="geostate">${set?'📍 set':'off'}</span>`+
+    `</div>`;
+  }).join('');
+  el.querySelectorAll('.georow').forEach(row=>{
+    const c=row.dataset.c;
+    row.querySelector('.geohere').onclick=()=>{
+      if(!navigator.geolocation){ flashMsg('geoMsg','Geolocation not supported in this browser.'); return; }
+      row.querySelector('.geohere').textContent='Locating…';
+      navigator.geolocation.getCurrentPosition(p=>{
+        row.querySelector('.geolat').value=p.coords.latitude.toFixed(6);
+        row.querySelector('.geolng').value=p.coords.longitude.toFixed(6);
+        row.querySelector('.geohere').textContent='Use my location';
+      },err=>{ row.querySelector('.geohere').textContent='Use my location'; flashMsg('geoMsg','Could not get location: '+err.message); },{enableHighAccuracy:true,timeout:12000,maximumAge:0});
+    };
+    row.querySelector('.geosave').onclick=async()=>{
+      const lat=row.querySelector('.geolat').value.trim(), lng=row.querySelector('.geolng').value.trim();
+      const radiusM=row.querySelector('.georad').value.trim()||'200';
+      try{
+        const res=await api('/api/admin/campus-geo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campus:c,lat,lng,radiusM})});
+        const d=await res.json().catch(()=>({}));
+        if(res.ok){ flashMsg('geoMsg',(lat===''&&lng==='')?`Geofence cleared for ${c}.`:`Saved ${c}.`); loadGeo(); }
+        else flashMsg('geoMsg', d.error||'Could not save.');
+      }catch(e){ flashMsg('geoMsg','Network error.'); }
+    };
+  });
 }
 
 // Show a message, then auto-clear it after 10 seconds.

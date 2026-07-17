@@ -184,6 +184,12 @@ function splitDateTime(d) {
     time: `${parts.hour}:${parts.minute}:${parts.second}`
   };
 }
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
 function workedMins(start, end) {
   if (!start || !end) return 0;
   const a = new Date(start.capturedAt).getTime(), b = new Date(end.capturedAt).getTime();
@@ -415,6 +421,34 @@ app.post('/api/admin/user-features', requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ---- campus geofencing ----
+app.get('/api/admin/campus-geo', requireAdmin, async (req, res) => {
+  try { res.json(await db.listCampusGeo()); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/admin/campus-geo', requireAdmin, async (req, res) => {
+  try {
+    const campus = String(req.body.campus || '').trim();
+    if (!campus) return res.status(400).json({ error: 'Campus is required.' });
+    if (campus.length > MAXLEN) return res.status(400).json({ error: 'Campus name too long.' });
+    // blank lat/lng clears the geofence for that campus
+    const clear = req.body.lat === '' && req.body.lng === '';
+    let lat = null, lng = null, radiusM = 200;
+    if (!clear) {
+      lat = parseFloat(req.body.lat); lng = parseFloat(req.body.lng);
+      if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        return res.status(400).json({ error: 'Enter valid latitude (−90..90) and longitude (−180..180).' });
+      }
+      radiusM = Math.round(Number(req.body.radiusM));
+      if (!(radiusM > 0)) radiusM = 200;
+      if (radiusM > 100000) radiusM = 100000;
+    }
+    await db.setCampusGeo(campus, lat, lng, radiusM);
+    audit(req, `campus geo ${campus} lat=${lat} lng=${lng} r=${radiusM}`);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ---- ADMIN: set the global default user password ----
 app.post('/api/admin/default-password', requireAdmin, async (req, res) => {
   try {
@@ -443,6 +477,20 @@ app.post('/api/checkin', requireUser, upload.single('photo'), async (req, res) =
     const lat = parseFloat(req.body.lat), lng = parseFloat(req.body.lng);
     if (isNaN(lat) || isNaN(lng)) {
       return res.status(400).json({ error: 'Location is required. Please allow location access and capture again.' });
+    }
+
+    // Geofence: block check-ins made outside the employee's campus radius.
+    // Fail-open when the campus has no coordinates configured (so nobody is locked out by default).
+    if (rosterEmp.campus) {
+      const geo = await db.getCampusGeo(rosterEmp.campus);
+      if (geo && geo.lat != null && geo.lng != null) {
+        const dist = haversineMeters(lat, lng, geo.lat, geo.lng);
+        const radius = Number(geo.radiusM) > 0 ? Number(geo.radiusM) : 200;
+        if (dist > radius) {
+          audit(req, `geofence block ${empId} campus=${rosterEmp.campus} dist=${Math.round(dist)}m limit=${radius}m`);
+          return res.status(403).json({ error: `You appear to be ${Math.round(dist)} m from ${rosterEmp.campus} (allowed within ${radius} m). Check-in must be done at your campus.` });
+        }
+      }
     }
 
     const serverNow = new Date();

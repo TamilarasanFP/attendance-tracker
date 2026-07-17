@@ -78,6 +78,16 @@ create table if not exists public.options (
 );
 -- (The app seeds default options automatically on first load.)
 
+-- 2c-geo) Per-campus geofence (coordinates + allowed radius in metres)
+create table if not exists public.campus_geo (
+  campus     text primary key,
+  lat        double precision,
+  lng        double precision,
+  radius_m   integer not null default 200,
+  updated_at timestamptz not null default now()
+);
+alter table public.campus_geo enable row level security;
+
 -- 2d) HelpDesk tickets (employees raise, admins reply)
 create table if not exists public.helpdesk (
   id          bigint generated always as identity primary key,
