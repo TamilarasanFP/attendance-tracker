@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>College Progress (read-only)</title>
+  <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('lc_theme')||'dark')}catch(e){}</script>
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">⚡</span>
+      <div>
+        <h1 id="collegeName">College Progress</h1>
+        <p class="sub">Read-only view</p>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="pill medium">Read-only · updates automatically</span>
+      <button id="themeToggle" class="btn btn-ghost" title="Toggle light / dark">☀️</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="error" class="panel" style="display:none"></div>
+    <div id="content" style="display:none">
+      <nav class="tabs">
+        <button class="tab active" data-tab="dashboard">Dashboard</button>
+        <button class="tab" data-tab="practice">Practice</button>
+      </nav>
+
+      <section id="tab-dashboard" class="tab-panel active">
+      <div class="cards" id="cards"></div>
+
+      <div class="panel">
+        <h2>Monthly submission activity</h2>
+        <canvas id="monthly" height="80"></canvas>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head" style="flex-wrap:wrap;gap:8px">
+          <h2>Students</h2>
+          <div class="row" style="margin:0;gap:8px;flex-wrap:wrap">
+            <button id="riskToggle" class="btn btn-sm btn-ghost" title="Show only inactive students">⚠ Inactive Students</button>
+            <select id="filterCampus" class="filter-sel"><option value="">All campuses</option></select>
+            <select id="filterDept" class="filter-sel"><option value="">All departments</option></select>
+            <select id="filterBatch" class="filter-sel"><option value="">All batches</option></select>
+            <input id="studentSearch" class="search" placeholder="Search name / username / reg no…" style="width:200px" />
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="studentTable">
+            <thead><tr>
+              <th>#</th><th>Student</th><th>Global rank</th><th>Easy · Medium · Hard</th><th>Total</th><th>Practice</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="row" id="pager" style="justify-content:flex-end;gap:12px;margin-top:12px">
+          <span id="pageInfo" class="hint"></span>
+          <button id="prevPage" class="btn btn-sm btn-ghost">‹ Prev</button>
+          <button id="nextPage" class="btn btn-sm btn-ghost">Next ›</button>
+        </div>
+      </div>
+      </section>
+
+      <section id="tab-practice" class="tab-panel">
+      <div class="panel">
+        <div class="panel-head" style="flex-wrap:wrap;gap:8px">
+          <h2>Completion breakdown</h2>
+          <span class="hint">How many students have solved how many of the assigned questions. Click a row to see who.</span>
+        </div>
+        <div id="completionDist" class="dist-list"></div>
+      </div>
+      <div class="panel">
+        <h2>Assigned problems &amp; completion</h2>
+        <div id="practiceDomainTabs" class="dom-tabs"></div>
+        <div class="table-wrap">
+          <table id="practiceTable">
+            <thead><tr><th>Problem</th><th>Difficulty</th><th>Solved by</th><th>Progress</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      </section>
+    </div>
+  </main>
+
+  <div id="drawer" class="drawer"><div class="drawer-inner">
+    <button class="drawer-close" id="drawerClose">✕</button>
+    <div id="drawerContent"></div>
+  </div></div>
+  <div id="drawerBackdrop" class="backdrop"></div>
+
+  <footer class="foot">Shared read-only view. Data comes from students' public LeetCode profiles.</footer>
+  <script>
+    (function () {
+      var root = document.documentElement, btn = document.getElementById('themeToggle');
+      function icon() { if (btn) btn.textContent = root.getAttribute('data-theme') === 'light' ? '🌙' : '☀️'; }
+      icon();
+      if (btn) btn.addEventListener('click', function () {
+        var t = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        root.setAttribute('data-theme', t);
+        try { localStorage.setItem('lc_theme', t); } catch (e) {}
+        icon();
+        if (window.__onTheme) window.__onTheme();
+      });
+    })();
+  </script>
+  <script src="/view.js"></script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My LeetCode Progress</title>
+  <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('lc_theme')||'dark')}catch(e){}</script>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">⚡</span>
+      <div>
+        <h1>My LeetCode Progress</h1>
+        <p class="sub">Student view</p>
+      </div>
+    </div>
+    <div class="college-picker">
+      <span id="whoami" class="sync-status"></span>
+      <button id="themeToggle" class="btn btn-ghost" title="Toggle light / dark">☀️</button>
+      <button id="logoutBtn" class="btn btn-ghost" style="display:none">Log out</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- LOGIN -->
+    <section id="loginView" class="panel narrow" style="margin: 40px auto;">
+      <h2>Sign in</h2>
+      <p class="hint">Pick your college, then log in with the access code and your registered email.</p>
+      <label class="field">
+        <span>College</span>
+        <select id="loginCollege"></select>
+      </label>
+      <label class="field">
+        <span>Access code</span>
+        <input id="loginCode" type="password" placeholder="Code from your admin" />
+      </label>
+      <label class="field">
+        <span>Your email</span>
+        <input id="loginEmail" type="email" placeholder="you@college.edu" autocomplete="email" />
+      </label>
+      <button id="loginBtn" class="btn btn-primary">Log in</button>
+
+      <a id="toggleRegister" href="#" style="display:inline-block; font-size:13px; margin-top:14px;">Not registered? Add yourself</a>
+      <div id="registerWrap" style="display:none; margin-top:14px; border-top:1px solid var(--border); padding-top:14px;">
+        <p class="hint" style="margin-top:0">Add yourself to this college (needs the access code above). Your progress shows up here and on the admin dashboard.</p>
+        <label class="field"><span>Your name</span><input id="regName" placeholder="e.g. Asha Rao" /></label>
+        <label class="field"><span>Your email</span><input id="regEmail" type="email" placeholder="you@college.edu" /></label>
+        <label class="field"><span>Batch</span><select id="regBatch"><option value="">— select —</option></select></label>
+        <label class="field"><span>Department</span><select id="regDept"><option value="">— select —</option></select></label>
+        <label class="field"><span>LeetCode profile link or username</span><input id="regProfile" placeholder="https://leetcode.com/u/yourname/" /></label>
+        <button id="registerBtn" class="btn btn-primary">Add me &amp; view dashboard</button>
+      </div>
+
+      <div id="loginMsg" class="msg"></div>
+    </section>
+
+    <!-- APP (after login) -->
+    <div id="appView" style="display:none;">
+      <nav class="tabs">
+        <button class="tab active" data-tab="me">Dashboard</button>
+        <button class="tab" data-tab="practice">Practice</button>
+      </nav>
+
+      <section id="tab-me" class="tab-panel active">
+        <div id="heroCard" class="stu-hero"></div>
+        <div id="myCards"></div>
+        <div class="stu-panel">
+          <h3>Monthly submissions</h3>
+          <canvas id="myMonthly" height="90"></canvas>
+        </div>
+        <div class="stu-panel" id="myProgressPanel">
+          <h3>My progress</h3>
+          <div id="myProgress"></div>
+        </div>
+      </section>
+
+      <section id="tab-practice" class="tab-panel">
+        <div class="stu-panel">
+          <div class="panel-head" style="margin-bottom:6px">
+            <h3 style="margin:0">Questions to practice</h3>
+            <span id="practiceSummary" class="sync-status"></span>
+          </div>
+          <p class="hint">Click a problem to solve it on LeetCode. Once you solve it, it's marked done automatically on the next sync.</p>
+          <div id="myDomainTabs" class="dom-tabs"></div>
+          <div id="myPracticeList"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="foot">Your stats come from your public LeetCode profile and refresh when your admin syncs.</footer>
+  <script>
+    (function () {
+      var root = document.documentElement, btn = document.getElementById('themeToggle');
+      function icon() { if (btn) btn.textContent = root.getAttribute('data-theme') === 'light' ? '🌙' : '☀️'; }
+      icon();
+      if (btn) btn.addEventListener('click', function () {
+        var t = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        root.setAttribute('data-theme', t);
+        try { localStorage.setItem('lc_theme', t); } catch (e) {}
+        icon();
+        if (window.__onTheme) window.__onTheme();
+      });
+    })();
+  </script>
+  <script src="student.js"></script>
+</body>
+</html>

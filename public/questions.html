@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Practice Questions</title>
+  <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('lc_theme')||'dark')}catch(e){}</script>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">⚡</span>
+      <div>
+        <h1 id="collegeName">Practice Questions</h1>
+        <p class="sub">Assigned practice problems</p>
+      </div>
+    </div>
+    <button id="themeToggle" class="btn btn-ghost" title="Toggle light / dark">☀️</button>
+  </header>
+
+  <main>
+    <div id="error" class="panel" style="display:none"></div>
+    <div id="content" style="display:none">
+      <div class="panel">
+        <div id="domainTabs" class="dom-tabs"></div>
+        <div id="list"></div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="foot">Click a question title to open and solve it on LeetCode.</footer>
+
+  <script>
+    (function () {
+      var root = document.documentElement, btn = document.getElementById('themeToggle');
+      function icon() { if (btn) btn.textContent = root.getAttribute('data-theme') === 'light' ? '🌙' : '☀️'; }
+      icon();
+      if (btn) btn.addEventListener('click', function () {
+        var t = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        root.setAttribute('data-theme', t);
+        try { localStorage.setItem('lc_theme', t); } catch (e) {}
+        icon();
+        if (window.__onTheme) window.__onTheme();
+      });
+    })();
+  </script>
+  <script src="/questions.js"></script>
+</body>
+</html>

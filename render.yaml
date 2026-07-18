@@ -1,0 +1,21 @@
+# Render Blueprint — deploys the LeetCode dashboard as a persistent Node web service.
+# In Render: New → Blueprint → pick your repo → it reads this file.
+# You'll be prompted to paste the three secret values (they are NOT stored in git).
+services:
+  - type: web
+    name: leetcode-dashboard
+    runtime: node
+    plan: free                # free tier: sleeps after ~15 min idle (see DEPLOY.md)
+    buildCommand: npm install
+    startCommand: node src/server.js
+    healthCheckPath: /api/meta
+    autoDeploy: true          # redeploy on every git push
+    envVars:
+      - key: DB_DRIVER
+        value: supabase        # use the cloud database, not the local SQLite file
+      - key: SUPABASE_DB_URL
+        sync: false            # paste your Supabase connection string in the dashboard
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
