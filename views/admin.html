@@ -13,13 +13,21 @@
   :root[data-theme="light"] .tag{color:#475569;}
   *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
   body{margin:0;background:var(--bg);color:var(--txt);}
+  /* smoother, instant-feeling clicks everywhere */
+  button,.btn,.ghost,.tab,.mini,.mnbtn,.cal-nav,.alpha-b,.msel-btn,.stat,.thumb,label.ghost,.foldhead,.stbtn{
+    touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+    transition:transform .06s ease, filter .12s ease, border-color .12s ease, background .15s ease;
+  }
+  button:active,.btn:active,.ghost:active,.tab:active,.mini:active,.mnbtn:active,.cal-nav:active,.alpha-b:active,.msel-btn:active,.stat:active,.stbtn:active{ transform:scale(.97); }
+  .btn:hover,.ghost:hover,.tab:hover,.mini:hover,.stbtn:hover{ filter:brightness(1.08); }
+  button:disabled,.btn:disabled,.ghost:disabled{ cursor:not-allowed;opacity:.55;transform:none;filter:none; }
   header{padding:16px 22px;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
   header h1{font-size:18px;margin:0;}
   .tabs{display:flex;gap:8px;}
   .tab{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--txt);cursor:pointer;font-size:14px;}
   .tab.active{background:var(--acc);color:#ffffff;border-color:var(--acc);font-weight:600;}
   .right{margin-left:auto;display:flex;gap:10px;}
-  main{max-width:1080px;margin:0 auto;padding:24px 18px;}
+  main{max-width:1200px;margin:0 auto;padding:24px 18px;}
   .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:18px;}
   h2{font-size:15px;margin:0 0 14px;}
   table{width:100%;border-collapse:collapse;font-size:14px;}
@@ -700,6 +708,20 @@ async function removeOptionUI(cat,value){
 
 // ---- campus geofencing ----
 let GEO={};
+// Accept decimal (11.04598) OR DMS (11°02'45.4"N) and return decimal degrees.
+function parseCoord(s){
+  s=String(s||'').trim();
+  if(!s) return NaN;
+  if(/^[-+]?\d+(\.\d+)?$/.test(s)) return parseFloat(s);           // plain decimal
+  const m=s.match(/^\s*(\d+(?:\.\d+)?)\s*[°:\s]\s*(\d+(?:\.\d+)?)?\s*['′:\s]?\s*(\d+(?:\.\d+)?)?\s*["″]?\s*([NSEWnsew])?\s*$/);
+  if(m){
+    let dec=(parseFloat(m[1])||0)+(parseFloat(m[2])||0)/60+(parseFloat(m[3])||0)/3600;
+    const h=(m[4]||'').toUpperCase();
+    if(h==='S'||h==='W') dec=-dec;
+    return dec;
+  }
+  return NaN;
+}
 async function loadGeo(){
   try{ const arr=await (await api('/api/admin/campus-geo')).json(); GEO={}; for(const g of arr) GEO[g.campus]=g; }catch(e){ GEO={}; }
   renderGeoManager();
@@ -732,12 +754,22 @@ function renderGeoManager(){
       },err=>{ row.querySelector('.geohere').textContent='Use my location'; flashMsg('geoMsg','Could not get location: '+err.message); },{enableHighAccuracy:true,timeout:12000,maximumAge:0});
     };
     row.querySelector('.geosave').onclick=async()=>{
-      const lat=row.querySelector('.geolat').value.trim(), lng=row.querySelector('.geolng').value.trim();
+      const latEl=row.querySelector('.geolat'), lngEl=row.querySelector('.geolng');
+      let latRaw=latEl.value.trim(), lngRaw=lngEl.value.trim();
+      // convenience: paste "11.04598, 77.05257" into the Latitude box and it splits
+      if(!lngRaw && latRaw.includes(',')){ const p=latRaw.split(','); latRaw=p[0].trim(); lngRaw=p.slice(1).join(',').trim(); }
       const radiusM=row.querySelector('.georad').value.trim()||'200';
+      let lat='', lng='';
+      if(latRaw!=='' || lngRaw!==''){
+        const la=parseCoord(latRaw), lo=parseCoord(lngRaw);
+        if(isNaN(la)||isNaN(lo)){ flashMsg('geoMsg','Could not read the coordinates. Use decimal (11.04598) or DMS (11°02\'45.4"N).'); return; }
+        lat=la.toFixed(6); lng=lo.toFixed(6);
+        latEl.value=lat; lngEl.value=lng;   // show the converted decimal back
+      }
       try{
         const res=await api('/api/admin/campus-geo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campus:c,lat,lng,radiusM})});
         const d=await res.json().catch(()=>({}));
-        if(res.ok){ flashMsg('geoMsg',(lat===''&&lng==='')?`Geofence cleared for ${c}.`:`Saved ${c}.`); loadGeo(); }
+        if(res.ok){ flashMsg('geoMsg',(lat===''&&lng==='')?`Geofence cleared for ${c}.`:`Saved ${c} at ${lat}, ${lng}.`); loadGeo(); }
         else flashMsg('geoMsg', d.error||'Could not save.');
       }catch(e){ flashMsg('geoMsg','Network error.'); }
     };
